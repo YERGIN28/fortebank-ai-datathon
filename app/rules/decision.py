@@ -50,14 +50,16 @@ def decide_video(inference_result):
         if (event_type in ACTION_CATALOG and event_type != "unknown") or event_type.startswith("document_"):
             continue
         rule = RULE_CATALOG.get(event_type)
-        if not rule or not rule.get("verified") or not rule.get("regulation"):
+        if (not rule or not rule.get("verified") or not rule.get("regulation")
+                or rule.get("decision_mode") == "review_only"):
             unresolved.append(event_type)
             continue
         checks = event.get("condition_checks", {})
         if not isinstance(checks, dict):
             return _failed("invalid_condition_checks")
         states, timestamps = [], []
-        for name in rule["conditions"]:
+        required_names = rule["conditions"] + rule.get("exceptions", [])
+        for name in required_names:
             check = checks.get(name, {})
             if not isinstance(check, dict):
                 return _failed("invalid_condition_check")
@@ -69,16 +71,22 @@ def decide_video(inference_result):
                     or any(not is_valid_time(t) or not start <= t <= end for t in evidence)):
                 return _failed("invalid_condition_evidence")
             # Both confirmation and refutation require visible evidence.
-            states.append(state if evidence else "unclear")
+            effective = state if evidence else "unclear"
+            if name in rule.get("visibility_conditions", []) and effective == "refuted":
+                effective = "unclear"  # Poor visibility is not counterevidence.
+            states.append(effective)
             timestamps.extend(evidence)
-        if "refuted" in states:
+        condition_states = states[:len(rule["conditions"])]
+        exception_states = states[len(rule["conditions"]):]
+        if "refuted" in condition_states or "observed" in exception_states:
             continue
-        if not states or any(state != "observed" for state in states):
+        if (not condition_states or any(state != "observed" for state in condition_states)
+                or any(state != "refuted" for state in exception_states)):
             unresolved.append(event_type)
             continue
         times = sorted(set(timestamps))
-        # Keep up to three points including the first and last context frames.
-        primary = max(checks["cashier_left_workplace"]["evidence_timestamps_sec"])
+        # Localize the action specified by this rule, not a preceding context frame.
+        primary = max(checks[rule.get("time_condition", rule["conditions"][0])]["evidence_timestamps_sec"])
         context = times if len(times) <= 3 else [times[0], times[len(times) // 2], times[-1]]
         selected = [primary] + [t for t in context if t != primary][:2]
         regulation = rule["regulation"]
