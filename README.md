@@ -1,6 +1,6 @@
 # ForteBank: интеграция backend, AI и правил
 
-Рабочая папка: C:\Users\Erassul\Desktop\fortebank-ai-datathon. Ветка: backend.
+Ветка сборки: backend. AI: 2026.10.18.3 (52883e6), правила: dcc124c.
 По умолчанию выполняется настоящий локальный inference, а затем финальный адаптер
 app.rules.decision.build_job_result. Заглушка доступна только через --mode fake.
 
@@ -16,9 +16,17 @@ app.rules.decision.build_job_result. Заглушка доступна толь�
 В VS Code также есть задача «ForteBank: real server» (Terminal → Run Task).
 Запускать один экземпляр сервера. Ключ из .env в JavaScript не передаётся.
 
+Финальный GPU-хост для приёмки — ноутбук Айсаны (RTX 4050). Перед проверкой
+остановить прежний сервер, получить согласованный коммит backend и проверить
+`git rev-parse HEAD`. Активировать рабочее AI-окружение этого ноутбука,
+указать в локальном .env его MODEL_PATH и свой API_KEY, затем выполнить
+`python start_backend.py --mode real`. В терминале должна появиться строка
+`Inference loaded: 2026.10.18.3`. Старый запущенный worker сам не обновляется.
+Время RTX 3050 не является оценкой времени или приёмкой на RTX 4050.
+
 ## Окружение
 
-Новый .venv подготовлен отдельно от старого venv. Если окружение нужно создать заново:
+Локальный .venv подготовлен отдельно от старого venv. Если окружение нужно создать заново:
 
 ```powershell
 python -m venv .venv
@@ -45,8 +53,11 @@ NumPy 1.26.4, huggingface-hub>=0.34.0,<1.0. refine=False.
 Один worker загружает engine один раз, затем последовательно обрабатывает задания.
 complete передаётся в правила; partial/timeout/исключения дают failed.
 Для кандидатов cash_left_unattended выполняется дополнительная проверка контекста
-из командной ветки codex/integrated-pipeline, коммит eeea756. Она размещена
-в backend/services/service_context.py; актуальный app/inference не изменён.
+в backend/services/service_context.py через публичный
+`engine.model.check_service_context(frames, deadline)` из AI 2026.10.18.3.
+Кандидаты cashier_leaves_during_service уже получают condition_checks внутри AI;
+backend передаёт эти проверки правилам без повторного контекстного вызова.
+Эксперимент check_relevance=False, refine=False; базовый бюджет — 300 секунд.
 Условия не выводятся из одного названия события: нужен отдельный ответ модели.
 Финальные нарушения и 1–3 JPEG формирует адаптер команды правил.
 Нерешённые события дают failed; это не подменяется отрицательным вердиктом.
@@ -68,3 +79,7 @@ UI endpoints скрыты из Swagger. Технические timestamps хра
 Реальное видео может завершиться failed из-за лимита 300 с или недостатка контекста.
 Это не означает, что нарушение отсутствует. Тесты с подставной моделью проверяют
 интеграцию, но не точность Qwen. Подробности фактических проверок: TEST_RESULTS.md.
+После inference журнал выводит `Inference metrics:`: число обработанных окон,
+время decode/relevance/observe/verify_object/service_context и память PyTorch.
+Это метрики самого inference; отдельный контекстный проход backend и правила
+в эти счётчики не входят. Кадры, ответы модели и пути видео в эту запись не попадают.

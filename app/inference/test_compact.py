@@ -177,6 +177,7 @@ class CompactTests(unittest.TestCase):
     def test_default_config_uses_bounded_baseline(self):
         config = InferenceConfig(Path('unused'))
         self.assertFalse(config.refine)
+        self.assertFalse(config.check_relevance)
         self.assertEqual(config.max_object_checks, 3)
         self.assertEqual(config.object_check_seconds, 6)
         self.assertEqual(config.verification_frame_side, 640)

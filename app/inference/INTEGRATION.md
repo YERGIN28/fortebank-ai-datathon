@@ -8,7 +8,7 @@
 
 `type`: cash_handling / cash_transfer / cash_left_unattended /
 cash_drawer_opened / cash_drawer_closed / document_handling /
-document_transfer / object_transfer / unknown. Это категории действий, не готовые
+document_transfer / object_transfer / unknown / cashier_leaves_during_service. Это категории действий, не готовые
 правила нарушения. Новые document/object-категории нельзя автоматически считать
 нарушением. Айша задаёт явное соответствие своим правилам.
 Rule Engine должен явно обрабатывать unknown как неклассифицированное наблюдение,
@@ -135,11 +135,33 @@ type/object_kind/actors и контейнер observations вместо events. 
 неизвестные/отсутствующие версии объединяются в other_or_missing без вывода
 произвольного текста. Перезапуск worker после обновления обязателен.
 
-Техническое поле result.stage_timings_sec содержит decode, observe, verify_object
+Версия 2026.10.18.2 добавляет model.check_service_context(frames, deadline)
+для сборки с app.rules.context. Ответ содержит ровно cashier_left_workplace
+и customer_service_ongoing, каждое с state (observed/refuted/unclear) и frames
+(индексы предоставленных кадров). Отсутствие доказательств даёт unclear;
+наблюдаемый уход требует минимум двух разных кадров до/после. Метод сам
+не ставит нормативный вердикт. Вызывать его должен контекстный проход правил,
+в пределах общего deadline. Генерация ограничена 128 токенами и завершённым JSON.
+
+Версия 2026.10.18.3: уход кассира ищется отдельно от наличных. Категория
+cashier_leaves_during_service — кандидат. Перед выдачей проверяются два условия
+на кадрах до/после; Observation.condition_checks содержит их state и
+evidence_timestamps_sec. Максимум max_service_checks=3 проверок на видео,
+каждая service_check_seconds=10 (кооперативно). Неподтверждённые условия
+остаются unclear; сам inference не выдаёт violation. Внешний app.rules.context
+дополнительно обслуживает cash_left_unattended.
+
+Эксперимент check_relevance=True ОТКЛЮЧЁН по умолчанию: на выбранной паре
+он пропустил положительный пример (F1=0). Не включать без новой проверки
+полноты. Быстрый done/no_violation не доказывает качество. Отчёты этого
+эксперимента не являются проверкой рабочего профиля.
+
+Техническое поле result.stage_timings_sec содержит decode, relevance, observe,
+verify_object, service_context
 в секундах, включая незавершённые вызовы. observe включает подготовку входа,
 генерацию и разбор ответа; verify_object — отдельные вызовы модели для объекта.
 Загрузка модели учитывается отдельно в model_load_sec. summary выводит только
-суммы этих трёх фиксированных счётчиков и число образцов; старые результаты
+суммы этих фиксированных счётчиков и число образцов; старые результаты
 без счётчиков поддерживаются. Это диагностика времени, не оценка качества.
 
 После обновления кода нужно перезапустить worker. Проверка на искусственном

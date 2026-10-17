@@ -1,5 +1,7 @@
 from pathlib import Path
 import base64
+import json
+import logging
 import threading
 import time
 import sys
@@ -204,6 +206,64 @@ def test_incomplete_inference_is_failed(client, video, monkeypatch, status):
     assert "verdict" not in result
 
 
+def test_timeout_reports_safe_metrics_and_worker_continues(client, video, monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+    payloads = iter([
+        {
+            "status": "timeout", "elapsed_sec": 307.25,
+            "processed_windows": 1, "planned_windows": 3, "duration_sec": 16,
+            "gpu_peak_allocated_mib": 3800, "gpu_peak_reserved_mib": 3900,
+            "stage_timings_sec": {"decode": 0.25, "observe": 290, "verify_object": 7,
+                                  "service_context": 10, "relevance": 0,
+                                  "PRIVATE_STAGE": "PRIVATE_VALUE"},
+            "observations": [{"description": "PRIVATE_OBSERVATION"}],
+            "warnings": ["PRIVATE_WARNING"], "path": "PRIVATE_PATH",
+        },
+        {"status": "complete", "observations": [], "elapsed_sec": float("nan"),
+         "stage_timings_sec": {"observe": "PRIVATE_VALUE"}},
+    ])
+    analyzer = service.VideoAnalyzer(mode="real")
+
+    def analyze(path):
+        data = next(payloads)
+        return SimpleNamespace(to_dict=lambda: data)
+
+    analyzer.engine = SimpleNamespace(analyze_video=analyze)
+    original = service.VideoAnalyzer.run_analysis
+    monkeypatch.setattr(service.VideoAnalyzer, "run_analysis", lambda self, path: original(analyzer, path))
+    rules_calls = []
+    original_rules = rules_adapter.run_rule_engine
+
+    def checked_rules(data, path):
+        rules_calls.append(data["status"])
+        return original_rules(data, path)
+
+    monkeypatch.setattr(rules_adapter, "run_rule_engine", checked_rules)
+    first = wait_job(client, submit(client, video.read_bytes()))
+    assert first["status"] == "failed"
+    assert "timeout" in first["error"]
+    assert "307.2s" in first["error"]
+    assert "completed windows 1/3" in first["error"]
+    assert "verdict" not in first
+    assert rules_calls == []
+
+    second = wait_job(client, submit(client, video.read_bytes()))
+    assert second["status"] == "done"
+    assert rules_calls == ["complete"]
+    assert not list(Path(main.UPLOAD_DIR).glob("*.mov"))
+    messages = [record.getMessage() for record in caplog.records
+                if record.getMessage().startswith("Inference metrics: ")]
+    assert len(messages) == 2
+    metrics = json.loads(messages[0].split(": ", 1)[1])
+    assert metrics["stage_timings_sec"] == {
+        "decode": 0.25, "observe": 290, "verify_object": 7, "service_context": 10, "relevance": 0,
+    }
+    assert metrics["processed_windows"] == 1
+    assert metrics["planned_windows"] == 3
+    assert "PRIVATE_" not in caplog.text
+    assert "NaN" not in messages[1]
+
+
 def real_analyzer(status="complete", observations=None):
     analyzer = service.VideoAnalyzer(mode="real")
     data = {"status": status, "observations": observations or []}
@@ -357,10 +417,73 @@ def test_confirmed_rule_reaches_http_with_real_jpeg(client, video, monkeypatch):
 
 def test_context_pass_uses_model_evidence(video):
     analyzer = real_analyzer(observations=[{"type": "cash_left_unattended", "start_sec": 0, "end_sec": 1}])
-    import json
-    analyzer.engine.model = SimpleNamespace(_generate=lambda *args: json.dumps({
-        "cashier_left_workplace": {"state": "observed", "frames": [0]},
-        "customer_service_ongoing": {"state": "observed", "frames": [1]}}))
+    calls = []
+
+    def check_service_context(frames, deadline):
+        calls.append((len(frames), deadline))
+        assert 0 < deadline - time.perf_counter() <= 300
+        return {
+            "cashier_left_workplace": {"state": "observed", "frames": [0, 1]},
+            "customer_service_ongoing": {"state": "observed", "frames": [1]},
+        }
+
+    # Only the public method is exposed: reaching _generate would fail this test.
+    analyzer.engine.model = SimpleNamespace(check_service_context=check_service_context)
     result = analyzer.run_analysis(str(video))
+    assert len(calls) == 1
     assert result["verdict"] == "violation"
     assert len(result["violations"][0]["evidence_frames"]) == 2
+
+
+@pytest.mark.parametrize("condition,status,verdict", [
+    ("observed", "done", "violation"),
+    ("refuted", "done", "no_violation"),
+    ("unclear", "failed", None),
+])
+def test_current_ai_departure_flows_through_rules_and_http(
+        client, video, monkeypatch, condition, status, verdict):
+    from app.inference import InferenceConfig, InferenceEngine
+
+    class Model:
+        context_calls = 0
+
+        def load(self): pass
+        def reset_metrics(self): pass
+        def metrics(self): return {}
+
+        def observe(self, frames, deadline):
+            return [{"start_frame": 1, "end_frame": 2,
+                     "type": "cashier_leaves_during_service", "object_kind": "none",
+                     "description": "Synthetic departure candidate."}]
+
+        def check_service_context(self, frames, deadline):
+            self.context_calls += 1
+            return {
+                "cashier_left_workplace": {"state": "observed", "frames": [0, len(frames) - 1]},
+                "customer_service_ongoing": {
+                    "state": condition, "frames": [] if condition == "unclear" else [1],
+                },
+            }
+
+    model = Model()
+    analyzer = service.VideoAnalyzer(mode="real")
+    analyzer.engine = InferenceEngine(InferenceConfig(Path("unused-mock")), model=model)
+    original = service.VideoAnalyzer.run_analysis
+    monkeypatch.setattr(service.VideoAnalyzer, "run_analysis", lambda self, path: original(analyzer, path))
+    result = wait_job(client, submit(client, video.read_bytes(), route="/ui/analyze"), route="/ui/jobs/")
+    assert result["status"] == status
+    assert model.context_calls == 1  # Backend must not repeat the AI context pass.
+    if verdict is not None:
+        assert result["verdict"] == verdict
+        if verdict == "violation":
+            frames = result["violations"][0]["evidence_frames"]
+            assert 1 <= len(frames) <= 3
+            for frame in frames:
+                raw = base64.b64decode(frame["image_base64"], validate=True)
+                assert cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR) is not None
+        else:
+            assert result["violations"] == []
+    else:
+        assert "unresolved_observations" in result["error"]
+        assert "verdict" not in result
+    assert not list(Path(main.UPLOAD_DIR).glob("*.mov"))

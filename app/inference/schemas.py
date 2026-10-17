@@ -7,11 +7,12 @@ OBSERVATION_TYPES = (
     'cash_handling', 'cash_transfer', 'cash_left_unattended',
     'cash_drawer_opened', 'cash_drawer_closed',
     'document_handling', 'document_transfer', 'object_transfer', 'unknown',
+    'cashier_leaves_during_service',
 )
 OBJECT_KINDS = ('banknote', 'id_document', 'paper_document', 'unknown', 'none')
 ACTOR_ROLES = ('cashier', 'customer', 'unknown')
 MAX_EVENTS_PER_WINDOW = 32  # Defensive parser bound, not a detection target.
-INFERENCE_VERSION = '2026.10.18.1'
+INFERENCE_VERSION = '2026.10.18.3'
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,10 @@ class InferenceConfig:
     verification_frame_side: int = 640
     max_object_checks: int = 3
     object_check_seconds: float = 6.0
+    max_service_checks: int = 3
+    service_check_seconds: float = 10.0
+    check_relevance: bool = False  # Experimental: can miss true events; opt-in only.
+    relevance_check_seconds: float = 5.0
 
     def __post_init__(self):
         for name in ('window_seconds', 'overlap_seconds', 'time_budget_seconds'):
@@ -52,6 +57,14 @@ class InferenceConfig:
             raise ValueError('max_object_checks must be a nonnegative integer')
         if not math.isfinite(self.object_check_seconds) or self.object_check_seconds <= 0:
             raise ValueError('object_check_seconds must be finite and positive')
+        if type(self.max_service_checks) is not int or self.max_service_checks < 0:
+            raise ValueError('max_service_checks must be a nonnegative integer')
+        if not math.isfinite(self.service_check_seconds) or self.service_check_seconds <= 0:
+            raise ValueError('service_check_seconds must be finite and positive')
+        if type(self.check_relevance) is not bool:
+            raise ValueError('check_relevance must be a boolean')
+        if not math.isfinite(self.relevance_check_seconds) or self.relevance_check_seconds <= 0:
+            raise ValueError('relevance_check_seconds must be finite and positive')
 
 
 @dataclass
@@ -65,6 +78,7 @@ class Observation:
     type: str = 'unknown'
     confidence: float | None = None
     actors: list[str] = field(default_factory=lambda: ['unknown'])
+    condition_checks: dict = field(default_factory=dict)
 
 
 @dataclass

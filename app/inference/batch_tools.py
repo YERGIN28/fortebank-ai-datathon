@@ -75,6 +75,8 @@ def summarize(document, *, planned_videos=None, wall_elapsed_sec=None) -> dict:
                         'invalid_frame_index', 'invalid_actor_schema', 'no_frames', 'invalid_object_json',
                         'object_check_timeout', 'object_check_invalid_output', 'object_check_skipped',
                         'event_count_above_target'}
+    safe_diagnostics.update(('service_context_skipped', 'service_context_timeout', 'service_context_invalid_output'))
+    safe_diagnostics.update(('relevance_rejected', 'relevance_fallback'))
     for row in records:
         if not isinstance(row, dict) or row.get('status') not in ('complete', 'partial', 'timeout', 'failed'):
             raise ValueError('Invalid processing status')
@@ -84,14 +86,14 @@ def summarize(document, *, planned_videos=None, wall_elapsed_sec=None) -> dict:
         stages = row.get('stage_timings_sec', {})
         if not isinstance(stages, dict):
             raise ValueError('Invalid timing metrics')
-        for stage in ('decode', 'observe', 'verify_object'):
+        for stage in ('decode', 'relevance', 'observe', 'verify_object', 'service_context'):
             if stage in stages:
                 samples.setdefault('stage_' + stage, []).append(number(stages[stage]))
         for warning in row.get('warnings', []):
             if not isinstance(warning, str):
                 continue
             window = re.fullmatch(r'Window \d+: ([a-z_]+)', warning)
-            count = re.fullmatch(r'(object_check_[a-z_]+|event_count_above_target): (\d+)', warning)
+            count = re.fullmatch(r'(object_check_[a-z_]+|service_context_[a-z_]+|relevance_[a-z_]+|event_count_above_target): (\d+)', warning)
             if window and window.group(1) in safe_diagnostics:
                 diagnostic_counts[window.group(1)] += 1
             elif count and count.group(1) in safe_diagnostics:
@@ -113,7 +115,7 @@ def summarize(document, *, planned_videos=None, wall_elapsed_sec=None) -> dict:
         'inference_version_counts': dict(versions),
         'stage_timings': {stage: {'samples': len(samples.get('stage_' + stage, [])),
                                  'total_sec': sum(samples['stage_' + stage]) if 'stage_' + stage in samples else None}
-                          for stage in ('decode', 'observe', 'verify_object')},
+                          for stage in ('decode', 'relevance', 'observe', 'verify_object', 'service_context')},
         'timing': {
             'elapsed_samples': len(elapsed),
             'mean_elapsed_sec': mean(elapsed) if elapsed else None,
