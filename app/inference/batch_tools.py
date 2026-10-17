@@ -8,6 +8,7 @@ from statistics import mean
 
 from .evaluate import number
 from .evaluate_baseline import reference_records, rows, select_reference_by_manifest, video_key
+from .schemas import INFERENCE_VERSION
 
 
 def safe_batch_error(error: Exception) -> str:
@@ -69,18 +70,28 @@ def summarize(document, *, planned_videos=None, wall_elapsed_sec=None) -> dict:
         raise ValueError('Invalid expected video count')
     statuses, samples, complete_times = Counter(), {}, []
     diagnostic_counts = Counter()
+    versions = Counter()
     safe_diagnostics = {'invalid_json', 'json_token_limit', 'invalid_model_schema', 'too_many_events',
                         'invalid_frame_index', 'invalid_actor_schema', 'no_frames', 'invalid_object_json',
-                        'object_check_timeout', 'object_check_invalid_output', 'object_check_skipped'}
+                        'object_check_timeout', 'object_check_invalid_output', 'object_check_skipped',
+                        'event_count_above_target'}
     for row in records:
         if not isinstance(row, dict) or row.get('status') not in ('complete', 'partial', 'timeout', 'failed'):
             raise ValueError('Invalid processing status')
         statuses[row['status']] += 1
+        version = row.get('inference_version')
+        versions[INFERENCE_VERSION if version == INFERENCE_VERSION else 'other_or_missing'] += 1
+        stages = row.get('stage_timings_sec', {})
+        if not isinstance(stages, dict):
+            raise ValueError('Invalid timing metrics')
+        for stage in ('decode', 'observe', 'verify_object'):
+            if stage in stages:
+                samples.setdefault('stage_' + stage, []).append(number(stages[stage]))
         for warning in row.get('warnings', []):
             if not isinstance(warning, str):
                 continue
             window = re.fullmatch(r'Window \d+: ([a-z_]+)', warning)
-            count = re.fullmatch(r'(object_check_[a-z_]+): (\d+)', warning)
+            count = re.fullmatch(r'(object_check_[a-z_]+|event_count_above_target): (\d+)', warning)
             if window and window.group(1) in safe_diagnostics:
                 diagnostic_counts[window.group(1)] += 1
             elif count and count.group(1) in safe_diagnostics:
@@ -99,6 +110,10 @@ def summarize(document, *, planned_videos=None, wall_elapsed_sec=None) -> dict:
         'status_counts': {status: statuses[status] for status in ('complete', 'partial', 'timeout', 'failed')},
         'all_complete': bool(planned_videos) and statuses['complete'] == planned_videos,
         'diagnostic_counts': dict(diagnostic_counts),
+        'inference_version_counts': dict(versions),
+        'stage_timings': {stage: {'samples': len(samples.get('stage_' + stage, [])),
+                                 'total_sec': sum(samples['stage_' + stage]) if 'stage_' + stage in samples else None}
+                          for stage in ('decode', 'observe', 'verify_object')},
         'timing': {
             'elapsed_samples': len(elapsed),
             'mean_elapsed_sec': mean(elapsed) if elapsed else None,

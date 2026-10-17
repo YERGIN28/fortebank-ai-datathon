@@ -5,13 +5,14 @@ from pathlib import Path
 import time
 
 from .model import ModelOutputError, QwenModel
-from .schemas import ACTOR_ROLES, OBSERVATION_TYPES, InferenceConfig, InferenceResult, Observation
+from .schemas import ACTOR_ROLES, OBSERVATION_TYPES, MAX_EVENTS_PER_WINDOW, InferenceConfig, InferenceResult, Observation
 from .video import SampledFrame, VideoReader, iter_windows
 from .postprocess import HANDHELD_ACTIONS, deduplicate, normalize_action
 
 ERROR_CODES = {'Model response is not valid JSON': 'invalid_json',
                'Model response needs an observations list': 'invalid_model_schema',
                'Expected at most three observations': 'too_many_events',
+               'Event count exceeds defensive limit': 'too_many_events',
                'Frame indexes must be integers': 'invalid_frame_index',
                'Frame index outside the sampled window': 'invalid_frame_index',
                'actors must be a list of role strings': 'invalid_actor_schema',
@@ -27,8 +28,8 @@ def safe_window_error(error):
 def parse_observations(rows: list[dict], frames: list[SampledFrame],
                        resolution: float) -> list[Observation]:
     """Validate the entire response; invalid output never becomes a negative result."""
-    if not isinstance(rows, list) or len(rows) > 3:
-        raise ValueError('Expected at most three observations')
+    if not isinstance(rows, list) or len(rows) > MAX_EVENTS_PER_WINDOW:
+        raise ValueError('Event count exceeds defensive limit')
     result = []
     for row in rows:
         if not isinstance(row, dict):
@@ -78,6 +79,15 @@ class InferenceEngine:
         self._loaded = False
         self._object_checks = 0
         self._object_diagnostics = Counter()
+        self._stage_timings = Counter()
+
+    def _timed(self, stage, operation, *args, **kwargs):
+        started = time.perf_counter()
+        try:
+            return operation(*args, **kwargs)
+        finally:
+            # Include failed/timed-out calls. Never record inputs or model output.
+            self._stage_timings[stage] += time.perf_counter() - started
 
     def load(self) -> None:
         """Explicit worker startup hook; safe to call repeatedly, sequentially."""
@@ -86,7 +96,7 @@ class InferenceEngine:
             self._loaded = True
 
     def _observe(self, reader, start, end, count, deadline):
-        frames = reader.sample(start, end, count, deadline)
+        frames = self._timed('decode', reader.sample, start, end, count, deadline)
         if not frames:
             raise ValueError('No decodable frames in window')
         if time.perf_counter() >= deadline:
@@ -94,8 +104,10 @@ class InferenceEngine:
         # Includes the unsampled tail: timestamps do not imply frame-exact boundaries.
         boundaries = [start] + [f.timestamp_sec for f in frames] + [end]
         resolution = max(b - a for a, b in zip(boundaries, boundaries[1:]))
-        rows = self.model.observe(frames, deadline)
+        rows = self._timed('observe', self.model.observe, frames, deadline)
         parse_observations(rows, frames, resolution)  # Validate indexes/schema before any extra work.
+        if len(rows) > 2:
+            self._object_diagnostics['event_count_above_target'] += 1
         verified_rows = []
         for row in rows:
             row = dict(row)
@@ -114,11 +126,11 @@ class InferenceEngine:
                     check_deadline = min(deadline, time.perf_counter() + self.config.object_check_seconds)
                     moment = (frames[row['start_frame']].timestamp_sec + frames[row['end_frame']].timestamp_sec) / 2
                     try:
-                        detailed = reader.sample(moment, min(end, moment + 0.25), 1, check_deadline,
+                        detailed = self._timed('decode', reader.sample, moment, min(end, moment + 0.25), 1, check_deadline,
                                                  max_side=self.config.verification_frame_side)
                         if not detailed:
                             raise ValueError('No object verification frames')
-                        kind = self.model.verify_object(detailed, check_deadline)
+                        kind = self._timed('verify_object', self.model.verify_object, detailed, check_deadline)
                         if time.perf_counter() >= check_deadline:
                             raise TimeoutError('Object check time budget exhausted')
                         row['object_kind'] = kind
@@ -137,6 +149,7 @@ class InferenceEngine:
         result = InferenceResult()
         self._object_checks = 0
         self._object_diagnostics.clear()
+        self._stage_timings.clear()
         reader = VideoReader(path, self.config.max_frame_side)
         loaded = False
         try:
@@ -208,6 +221,8 @@ class InferenceEngine:
         finally:
             reader.close()
             result.elapsed_sec = time.perf_counter() - started
+            result.stage_timings_sec = {stage: round(self._stage_timings[stage], 4)
+                                       for stage in ('decode', 'observe', 'verify_object')}
             if loaded:
                 for key, value in self.model.metrics().items():
                     setattr(result, key, round(value, 2))

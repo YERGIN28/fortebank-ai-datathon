@@ -198,7 +198,7 @@ class SyntheticTests(unittest.TestCase):
                                      'description': 'synthetic'}], [SampledFrame(0, None)], 1)
 
     def test_schema_rejects_too_many_observations(self):
-        rows = [{'start_frame': 0, 'end_frame': 0, 'description': 'synthetic'}] * 4
+        rows = [{'start_frame': 0, 'end_frame': 0, 'description': 'synthetic'}] * 33
         with self.assertRaises(ValueError):
             parse_observations(rows, [SampledFrame(0, None)], 1)
 
