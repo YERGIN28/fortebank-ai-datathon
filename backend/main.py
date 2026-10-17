@@ -9,6 +9,7 @@ import queue
 
 from fastapi import FastAPI, UploadFile, File, HTTPException,Header
 from backend.media import extract_frame_base64, validate_video
+from backend.services.analyzer_service import run_analysis
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 
@@ -157,31 +158,11 @@ def get_job(
 
 def process_video(job_id: str, file_path: str):
     try:
-        video_info = validate_video(file_path)
-        
-        time.sleep(20)
-
-        timestamp = 10.0
-
-        evidence_frame = extract_frame_base64(
-            file_path,
-            timestamp
-        )
-
+        result = run_analysis(file_path)
         jobs[job_id] = {
             "job_id": job_id,
             "status": "done",
-            "verdict": "violation",
-            "violations": [
-                {
-                    "type": "Test violation",
-                    "timecode_sec": timestamp,
-                    "description": "Test violation detected",
-                    "evidence_frames": [
-                        evidence_frame
-                    ]
-                }
-            ]
+            **result,
         }
 
     except Exception as e:
