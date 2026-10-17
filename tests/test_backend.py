@@ -211,15 +211,19 @@ def real_analyzer(status="complete", observations=None):
     return analyzer
 
 
-@pytest.mark.parametrize("observations", [[], [{"type": "unknown", "description": "unclear"}], [{"type": "cash_left_unattended", "start_sec": 0, "end_sec": 1, "evidence_timestamps_sec": [0.5]}]])
-def test_current_real_rules_cannot_produce_false_verdict(client, video, monkeypatch, observations):
+@pytest.mark.parametrize("observations,status", [([], "done"), ([{"type": "unknown", "description": "unclear", "start_sec": 0, "end_sec": 1}], "failed")])
+def test_real_rules_final_decision(client, video, monkeypatch, observations, status):
     analyzer = real_analyzer(observations=observations)
     original = service.VideoAnalyzer.run_analysis
     monkeypatch.setattr(service.VideoAnalyzer, "run_analysis", lambda self, path: original(analyzer, path))
     result = wait_job(client, submit(client, video.read_bytes()))
-    assert result["status"] == "failed"
-    assert "needs_review" in result["error"]
-    assert "verdict" not in result
+    assert result["status"] == status
+    if status == "done":
+        assert result["verdict"] == "no_violation"
+        assert result["violations"] == []
+    else:
+        assert "unresolved_observations" in result["error"]
+        assert "verdict" not in result
 
 
 def test_evidence_limit(video):
@@ -299,7 +303,7 @@ def test_real_worker_loads_engine_once(monkeypatch, tmp_path, video):
             calls.append(("analyze", threading.get_ident()))
             return SimpleNamespace(to_dict=lambda: {"status": "complete", "observations": []})
 
-    monkeypatch.setitem(sys.modules, "app.inference", SimpleNamespace(InferenceEngine=Engine, InferenceConfig=lambda **kw: SimpleNamespace(**kw)))
+    monkeypatch.setitem(sys.modules, "app.inference", SimpleNamespace(INFERENCE_VERSION="test", InferenceEngine=Engine, InferenceConfig=lambda **kw: SimpleNamespace(**kw)))
     monkeypatch.setattr(config, "ANALYSIS_MODE", "real")
     monkeypatch.setattr(config, "MODEL_PATH", str(tmp_path))
     monkeypatch.setattr(main, "API_KEY", "test-key")
@@ -309,16 +313,16 @@ def test_real_worker_loads_engine_once(monkeypatch, tmp_path, video):
         ids = [submit(instance, video.read_bytes()) for _ in range(2)]
         for job_id in ids:
             result = wait_job(instance, job_id)
-            assert result["status"] == "failed"
-            assert "needs_review" in result["error"]
+            assert result["status"] == "done"
+            assert result["verdict"] == "no_violation"
     assert [row[0] for row in calls] == ["init", "load", "analyze", "analyze"]
     assert len({row[1] for row in calls}) == 1
 
 
 def test_rule_exception_propagates(video, monkeypatch):
-    def fail(data):
+    def fail(*args):
         raise RuntimeError("rules failed")
-    monkeypatch.setattr(rules_adapter, "evaluate_video", fail)
+    monkeypatch.setattr(rules_adapter, "build_job_result", fail)
     with pytest.raises(RuntimeError, match="rules failed"):
         real_analyzer().run_analysis(str(video))
 
@@ -332,3 +336,31 @@ def test_partial_upload_is_removed(client, monkeypatch):
         submit(client, b"video")
     assert not list(Path(main.UPLOAD_DIR).glob("*.mov"))
     assert not main.jobs
+
+
+def test_confirmed_rule_reaches_http_with_real_jpeg(client, video, monkeypatch):
+    event = {"type": "cashier_leaves_during_service", "start_sec": 0, "end_sec": 1,
+             "condition_checks": {
+                 "cashier_left_workplace": {"state": "observed", "evidence_timestamps_sec": [0.2]},
+                 "customer_service_ongoing": {"state": "observed", "evidence_timestamps_sec": [0.5]}}}
+    analyzer = real_analyzer(observations=[event])
+    original = service.VideoAnalyzer.run_analysis
+    monkeypatch.setattr(service.VideoAnalyzer, "run_analysis", lambda self, path: original(analyzer, path))
+    result = wait_job(client, submit(client, video.read_bytes()))
+    assert result["status"] == "done"
+    assert result["verdict"] == "violation"
+    assert 1 <= len(result["violations"][0]["evidence_frames"]) <= 3
+    for frame in result["violations"][0]["evidence_frames"]:
+        raw = base64.b64decode(frame["image_base64"], validate=True)
+        assert cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR) is not None
+
+
+def test_context_pass_uses_model_evidence(video):
+    analyzer = real_analyzer(observations=[{"type": "cash_left_unattended", "start_sec": 0, "end_sec": 1}])
+    import json
+    analyzer.engine.model = SimpleNamespace(_generate=lambda *args: json.dumps({
+        "cashier_left_workplace": {"state": "observed", "frames": [0]},
+        "customer_service_ongoing": {"state": "observed", "frames": [1]}}))
+    result = analyzer.run_analysis(str(video))
+    assert result["verdict"] == "violation"
+    assert len(result["violations"][0]["evidence_frames"]) == 2

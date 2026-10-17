@@ -180,7 +180,7 @@ def root():
     notice = (
         "Demo mode: results are simulated and do not confirm violations."
         if config.ANALYSIS_MODE == "fake" else
-        "AI mode: final decisions are unavailable until the Rule Engine is completed."
+        "AI mode: local Qwen inference and Rule Engine. Unresolved observations are reported as failed."
     )
     return html.replace("__ANALYSIS_NOTICE__", notice)
 

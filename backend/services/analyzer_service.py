@@ -1,5 +1,6 @@
 import time
 import math
+import logging
 from pathlib import Path
 
 from backend.media import extract_frame_base64, validate_video
@@ -67,6 +68,8 @@ class VideoAnalyzer:
         )
         self.engine = InferenceEngine(settings)
         self.engine.load()
+        from app.inference import INFERENCE_VERSION
+        logging.getLogger("uvicorn.error").info("Inference loaded: %s", INFERENCE_VERSION)
 
     def run_analysis(self, file_path: str):
         if self.mode == "fake":
@@ -74,8 +77,15 @@ class VideoAnalyzer:
         if self.engine is None:
             raise RuntimeError("Inference engine is not ready")
         validate_video(file_path)
+        deadline = time.perf_counter() + 300.0
         result = self.engine.analyze_video(file_path).to_dict()
         if result.get("status") != "complete":
             raise RuntimeError(f"Inference did not complete: {result.get('status', 'missing status')}")
         from backend.services.rules_adapter import run_rule_engine
-        return run_rule_engine(result, Path(file_path).stem)
+        from backend.services.service_context import ContextChecker, enrich_service_context
+        if any(event.get("type") == "cash_left_unattended" for event in result.get("observations", [])):
+            result = enrich_service_context(result, file_path, ContextChecker(self.engine.model), deadline)
+        response = run_rule_engine(result, file_path)
+        if time.perf_counter() >= deadline:
+            raise TimeoutError("Job analysis exceeded 300 seconds")
+        return response
