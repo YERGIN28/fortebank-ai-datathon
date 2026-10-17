@@ -27,15 +27,25 @@ UPLOAD_DIR = "uploads"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-def check_api_key(x_api_key: str):
-    if x_api_key != API_KEY:
+def check_api_key(x_api_key: str | None):
+    if not API_KEY or not x_api_key or x_api_key != API_KEY:
         raise HTTPException(
             status_code=401,
             detail="Invalid API key"
         )
         
         
-@app.get("/", response_class=HTMLResponse)
+def safe_upload_name(filename: str | None) -> str:
+    # Normalize both Windows and POSIX paths before taking the basename.
+    safe_name = Path((filename or "").replace("\\", "/")).name
+    if not safe_name.lower().endswith(".mov"):
+        raise HTTPException(status_code=400, detail="Only .mov files are supported")
+    if any(ord(char) < 32 or char in '<>:"|?*' for char in safe_name):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return safe_name
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def root():
 
     html_path = Path(
@@ -50,21 +60,17 @@ def root():
 @app.post("/api/v1/analyze")
 async def analyze(
     file: UploadFile = File(...),
-    x_api_key: str = Header(...)
+    x_api_key: str | None = Header(default=None)
 ):
     check_api_key(x_api_key)
 
-    if not file.filename.lower().endswith(".mov"):
-        raise HTTPException(
-            status_code=400,
-            detail="Only .mov files are supported"
-        )
+    safe_name = safe_upload_name(file.filename)
 
     job_id = uuid.uuid4().hex[:8]
 
     file_path = os.path.join(
         UPLOAD_DIR,
-        f"{job_id}_{file.filename}"
+        f"{job_id}_{safe_name}"
     )
 
     with open(file_path, "wb") as buffer:
@@ -92,17 +98,13 @@ async def analyze(
 @app.post("/ui/analyze", include_in_schema=False)
 async def ui_analyze(file: UploadFile = File(...)):
 
-    if not file.filename.lower().endswith(".mov"):
-        raise HTTPException(
-            status_code=400,
-            detail="Only .mov files are supported"
-        )
+    safe_name = safe_upload_name(file.filename)
 
     job_id = uuid.uuid4().hex[:8]
 
     file_path = os.path.join(
         UPLOAD_DIR,
-        f"{job_id}_{file.filename}"
+        f"{job_id}_{safe_name}"
     )
 
     with open(file_path, "wb") as buffer:
@@ -141,7 +143,7 @@ def ui_get_job(job_id: str):
 @app.get("/api/v1/jobs/{job_id}")
 def get_job(
     job_id: str,
-    x_api_key: str = Header(...)
+    x_api_key: str | None = Header(default=None)
 ):
     check_api_key(x_api_key)
 
