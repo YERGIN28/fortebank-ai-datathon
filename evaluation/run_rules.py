@@ -7,34 +7,25 @@ from pathlib import Path
 
 from app.rules.engine import check_events
 from app.rules.classifier import classify_observations
+from app.rules.decision import decide_video
 
 
 def process_video(video):
     video_id = video["video_id"]
     status = video.get("status", "failed")
 
-    # Неполный анализ не может означать no_violation.
-    if status != "complete":
-        return {
-            "video_id": video_id,
-            "status": status,
-            "verdict": "needs_review",
-            "violations": [],
-            "candidates": [],
-        }
-
+    decision = decide_video(video)
     observations = video.get("observations", [])
-
-    classified_observations = classify_observations(observations)
-    candidates = check_events(classified_observations)
-
-    # Условия и исключения правил пока не проверены.
-    # Поэтому подтверждённых нарушений нет.
+    candidates = []
+    if status == "complete" and isinstance(observations, list):
+        # Diagnostics only; malformed observations are already failed by decide_video.
+        valid = [item for item in observations if isinstance(item, dict)
+                 and isinstance(item.get("type"), str)
+                 and isinstance(item.get("description", ""), str)]
+        candidates = check_events(classify_observations(valid))
     return {
         "video_id": video_id,
-        "status": status,
-        "verdict": "needs_review",
-        "violations": [],
+        **decision,
         "candidates": candidates,
     }
 

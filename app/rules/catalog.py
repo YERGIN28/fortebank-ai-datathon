@@ -9,6 +9,19 @@
 # Нормативные основания добавим после проверки документов.
 
 RULE_CATALOG = {
+    "cashier_leaves_during_service": {
+        "title": "Уход кассира до окончания обслуживания клиента",
+        "description": "Кассир покидает рабочее место до окончания обслуживания клиента.",
+        "severity": "high",
+        "conditions": ["cashier_left_workplace", "customer_service_ongoing"],
+        "exceptions": [],
+        "regulation": {
+            "document": "Постановление НБРК от 29.11.2019 № 231",
+            "paragraph": "22",
+            "url": "https://adilet.zan.kz/rus/docs/V1900019680",
+        },
+        "verified": True,
+    },
     "cash_left_unattended": {
         "title": "Наличные оставлены без присмотра",
         "description": (
