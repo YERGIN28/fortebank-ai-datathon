@@ -1,10 +1,12 @@
 """Sequential GPU inference, bounded sampling and optional local refinement."""
 import math
+import json
+from dataclasses import replace
 from collections import Counter
 from pathlib import Path
 import time
 
-from .model import ModelOutputError, QwenModel
+from .model import ModelOutputError, QwenModel, parse_service_context
 from .schemas import ACTOR_ROLES, OBSERVATION_TYPES, MAX_EVENTS_PER_WINDOW, InferenceConfig, InferenceResult, Observation
 from .video import SampledFrame, VideoReader, iter_windows
 from .postprocess import HANDHELD_ACTIONS, deduplicate, normalize_action
@@ -80,6 +82,7 @@ class InferenceEngine:
         self._object_checks = 0
         self._object_diagnostics = Counter()
         self._stage_timings = Counter()
+        self._service_checks = 0
 
     def _timed(self, stage, operation, *args, **kwargs):
         started = time.perf_counter()
@@ -104,6 +107,19 @@ class InferenceEngine:
         # Includes the unsampled tail: timestamps do not imply frame-exact boundaries.
         boundaries = [start] + [f.timestamp_sec for f in frames] + [end]
         resolution = max(b - a for a, b in zip(boundaries, boundaries[1:]))
+        if self.config.check_relevance and hasattr(self.model, 'check_relevance'):
+            gate_deadline = min(deadline, time.perf_counter() + self.config.relevance_check_seconds)
+            try:
+                relevant = self._timed('relevance', self.model.check_relevance, frames, gate_deadline)
+                if time.perf_counter() >= deadline:
+                    raise TimeoutError('Time budget exhausted')
+                if time.perf_counter() < gate_deadline and relevant is False:
+                    self._object_diagnostics['relevance_rejected'] += 1
+                    return []
+            except (ValueError, TimeoutError):
+                if time.perf_counter() >= deadline:
+                    raise TimeoutError('Time budget exhausted') from None
+                self._object_diagnostics['relevance_fallback'] += 1
         rows = self._timed('observe', self.model.observe, frames, deadline)
         parse_observations(rows, frames, resolution)  # Validate indexes/schema before any extra work.
         if len(rows) > 2:
@@ -150,6 +166,7 @@ class InferenceEngine:
         self._object_checks = 0
         self._object_diagnostics.clear()
         self._stage_timings.clear()
+        self._service_checks = 0
         reader = VideoReader(path, self.config.max_frame_side)
         loaded = False
         try:
@@ -213,6 +230,41 @@ class InferenceEngine:
                         result.warnings.append(f'Observation {index}: refinement unavailable')
                 result.observations = refined
             result.observations = deduplicate(result.observations)
+            # Departure does not require visible banknotes. Keep evidence separate
+            # from the category; the Rule Engine alone decides the final verdict.
+            contextual = []
+            for observation in result.observations:
+                if result.status != 'complete' or observation.type != 'cashier_leaves_during_service':
+                    contextual.append(observation)
+                    continue
+                if (self._service_checks >= self.config.max_service_checks
+                        or deadline - time.perf_counter() <= self.config.service_check_seconds):
+                    self._object_diagnostics['service_context_skipped'] += 1
+                    contextual.append(observation)
+                    continue
+                self._service_checks += 1
+                check_deadline = min(deadline, time.perf_counter() + self.config.service_check_seconds)
+                start = max(0, observation.start_sec - 6)
+                end = min(reader.duration, observation.end_sec + 6)
+                try:
+                    frames = self._timed('decode', reader.sample, start, end, 6, check_deadline)
+                    if len(frames) < 2:
+                        raise ValueError('Insufficient context frames')
+                    checks = self._timed('service_context', self.model.check_service_context, frames, check_deadline)
+                    if time.perf_counter() >= check_deadline:
+                        raise TimeoutError('Context check exhausted budget')
+                    checks = parse_service_context(json.dumps(checks), len(frames))
+                    converted = {name: {'state': check['state'], 'evidence_timestamps_sec':
+                                 [frames[index].timestamp_sec for index in check['frames']]}
+                                 for name, check in checks.items()}
+                    observation = replace(observation, start_sec=start, end_sec=end,
+                                          condition_checks=converted)
+                except TimeoutError:
+                    self._object_diagnostics['service_context_timeout'] += 1
+                except (ValueError, AttributeError):
+                    self._object_diagnostics['service_context_invalid_output'] += 1
+                contextual.append(observation)
+            result.observations = contextual
             if time.perf_counter() >= deadline:
                 result.status = 'timeout'
             if result.status == 'timeout':
@@ -222,7 +274,7 @@ class InferenceEngine:
             reader.close()
             result.elapsed_sec = time.perf_counter() - started
             result.stage_timings_sec = {stage: round(self._stage_timings[stage], 4)
-                                       for stage in ('decode', 'observe', 'verify_object')}
+                                       for stage in ('decode', 'relevance', 'observe', 'verify_object', 'service_context')}
             if loaded:
                 for key, value in self.model.metrics().items():
                     setattr(result, key, round(value, 2))
