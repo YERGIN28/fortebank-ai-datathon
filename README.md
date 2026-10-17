@@ -25,6 +25,17 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-ai.txt -r requirements-test.txt
 ```
 
+В уже рабочем AI-окружении НЕ устанавливать весь requirements.txt. Добавить
+только web-компоненты, сохранив проверенные CUDA/AI-версии:
+
+```powershell
+python -m pip install -r requirements-web.txt -c constraints-ai.txt
+python -m pip check
+```
+
+Здесь `python` должен быть интерпретатором нужного AI-окружения. При конфликте
+ограничений установка должна остановиться; не удаляйте ограничения ради обновления.
+
 API_KEY и MODEL_PATH читаются из .env. Не отправляйте .env в Git.
 Используются версии inference-команды: torch 2.5.1+cu121, transformers 4.57.6,
 NumPy 1.26.4, huggingface-hub>=0.34.0,<1.0. refine=False.

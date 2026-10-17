@@ -1,0 +1,9 @@
+# Constraints preserve the team's tested AI versions; they do not install them.
+numpy==1.26.4
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+transformers==4.57.6
+accelerate==1.10.1
+Pillow==11.3.0
+av==16.0.1
+huggingface-hub>=0.34.0,<1.0

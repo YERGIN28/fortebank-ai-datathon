@@ -1,0 +1,7 @@
+# Overlay for an existing, working AI environment. Use with constraints-ai.txt.
+fastapi==0.143.3
+uvicorn==0.54.0
+opencv-python==4.11.0.86
+python-dotenv==1.2.4
+python-multipart==0.0.32
+requests==2.34.2
