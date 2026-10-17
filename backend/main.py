@@ -89,7 +89,7 @@ async def analyze(
         "job_id": job_id
     }
 
-@app.post("/ui/analyze")
+@app.post("/ui/analyze", include_in_schema=False)
 async def ui_analyze(file: UploadFile = File(...)):
 
     if not file.filename.lower().endswith(".mov"):
@@ -127,7 +127,7 @@ async def ui_analyze(file: UploadFile = File(...)):
         "job_id": job_id
     }
     
-@app.get("/ui/jobs/{job_id}")
+@app.get("/ui/jobs/{job_id}", include_in_schema=False)
 def ui_get_job(job_id: str):
 
     if job_id not in jobs:

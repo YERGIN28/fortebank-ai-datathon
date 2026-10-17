@@ -1,6 +1,6 @@
 import time
 import requests
-
+import base64
 
 API_URL = "http://127.0.0.1:8000"
 API_KEY = "forte-datathon-secret"
@@ -71,6 +71,47 @@ def wait_for_result(job_id):
 
         time.sleep(1)
 
+def validate_result(result):
+    assert "job_id" in result
+    assert result["status"] == "done"
+
+    assert result["verdict"] in [
+        "violation",
+        "no_violation"
+    ]
+
+    assert "violations" in result
+    assert isinstance(result["violations"], list)
+
+    if result["verdict"] == "no_violation":
+        assert len(result["violations"]) == 0
+
+    for violation in result["violations"]:
+        assert "type" in violation
+        assert "timecode_sec" in violation
+        assert "description" in violation
+        assert "evidence_frames" in violation
+
+        assert 1 <= len(
+            violation["evidence_frames"]
+        ) <= 3
+
+        for frame in violation["evidence_frames"]:
+            assert "timestamp_sec" in frame
+            assert "image_base64" in frame
+
+            image_bytes = base64.b64decode(
+                frame["image_base64"],
+                validate=True
+            )
+
+            if not image_bytes.startswith(b"\xff\xd8"):
+                raise AssertionError(
+                    "Evidence is not a valid JPEG"
+                )
+
+    print("\nAPI validation: PASSED")
+
 
 def main():
     print("Submitting video...")
@@ -80,12 +121,14 @@ def main():
     print(f"Created job: {job_id}")
 
     result = wait_for_result(job_id)
+    validate_result(result)
 
     print("\nFinal result:")
     print("Status:", result["status"])
     print("Verdict:", result["verdict"])
 
     violations = result.get("violations", [])
+
 
     if not violations:
         print("No violations detected")
