@@ -7,6 +7,7 @@ import threading
 
 
 from fastapi import FastAPI, UploadFile, File, HTTPException,Header
+from backend.media import extract_frame_base64
 
 API_KEY = "forte-datathon-secret"
 
@@ -90,6 +91,13 @@ def process_video(job_id: str, file_path: str):
     try:
         time.sleep(15)
 
+        timestamp = 10.0
+
+        evidence_frame = extract_frame_base64(
+            file_path,
+            timestamp
+        )
+
         jobs[job_id] = {
             "job_id": job_id,
             "status": "done",
@@ -97,9 +105,11 @@ def process_video(job_id: str, file_path: str):
             "violations": [
                 {
                     "type": "Test violation",
-                    "timecode_sec": 10.0,
+                    "timecode_sec": timestamp,
                     "description": "Test violation detected",
-                    "evidence_frames": []
+                    "evidence_frames": [
+                        evidence_frame
+                    ]
                 }
             ]
         }
@@ -110,7 +120,7 @@ def process_video(job_id: str, file_path: str):
             "status": "failed",
             "error": str(e)
         }
-        
+
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
