@@ -1,5 +1,10 @@
 # Финальный вердикт и подключение
 
+Расширение от 18.10.2026: кроме ухода кассира добавлены две условные проверки
+по п. 20 № 231; п. 42 оставлен только для проверки человеком. Полный перечень
+условий и ограничений: [покрытие правил](rule_coverage.md).
+Для новых типов штатный inference ещё не формирует необходимые condition_checks.
+
 `app.rules.decision.decide_video(result)` принимает словарь `InferenceResult.to_dict()`.
 `build_job_result(job_id, result, extract_frame)` формирует публичный ответ backend.
 Callback `extract_frame(seconds)` читает исходное видео и возвращает
