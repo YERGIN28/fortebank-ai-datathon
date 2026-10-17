@@ -10,6 +10,8 @@ OBSERVATION_TYPES = (
 )
 OBJECT_KINDS = ('banknote', 'id_document', 'paper_document', 'unknown', 'none')
 ACTOR_ROLES = ('cashier', 'customer', 'unknown')
+MAX_EVENTS_PER_WINDOW = 32  # Defensive parser bound, not a detection target.
+INFERENCE_VERSION = '2026.10.18.1'
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,8 @@ class InferenceResult:
     model_load_sec: float = 0.0
     gpu_peak_allocated_mib: float = 0.0
     gpu_peak_reserved_mib: float = 0.0
+    stage_timings_sec: dict[str, float] = field(default_factory=dict)
+    inference_version: str = INFERENCE_VERSION
 
     def to_dict(self):
         return asdict(self)
