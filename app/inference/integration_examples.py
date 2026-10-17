@@ -22,6 +22,9 @@ class MockModel:
     def metrics(self):
         return {}
 
+    def verify_object(self, frames, deadline):
+        return 'banknote'  # Explicitly mocked; synthetic shapes are not actual money.
+
     def observe(self, frames, deadline):
         self.calls += 1
         if self.calls == 2:
@@ -31,7 +34,8 @@ class MockModel:
                 raise TimeoutError('Synthetic timeout')
         return [{'start_frame': 0, 'end_frame': 1,
                  'description': 'SYNTHETIC MOCK: cash remains on a desk after an attendant steps away.',
-                 'type': 'cash_left_unattended', 'confidence': None, 'actors': ['cashier']}]
+                 'type': 'cash_left_unattended', 'object_kind': 'banknote',
+                 'confidence': None, 'actors': ['cashier']}]
 
 
 def create_results() -> dict:

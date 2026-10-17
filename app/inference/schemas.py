@@ -3,7 +3,12 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 import math
 
-OBSERVATION_TYPES = ('cash_left_unattended', 'unknown')
+OBSERVATION_TYPES = (
+    'cash_handling', 'cash_transfer', 'cash_left_unattended',
+    'cash_drawer_opened', 'cash_drawer_closed',
+    'document_handling', 'document_transfer', 'object_transfer', 'unknown',
+)
+OBJECT_KINDS = ('banknote', 'id_document', 'paper_document', 'unknown', 'none')
 ACTOR_ROLES = ('cashier', 'customer', 'unknown')
 
 
@@ -16,8 +21,12 @@ class InferenceConfig:
     max_frame_side: int = 448
     max_new_tokens: int = 256
     time_budget_seconds: float = 300.0
-    refine: bool = True
+    refine: bool = False
     refinement_frames: int = 6
+    verify_objects: bool = True
+    verification_frame_side: int = 640
+    max_object_checks: int = 3
+    object_check_seconds: float = 6.0
 
     def __post_init__(self):
         for name in ('window_seconds', 'overlap_seconds', 'time_budget_seconds'):
@@ -33,6 +42,14 @@ class InferenceConfig:
                 raise ValueError(f'{name} must be a positive integer')
         if not isinstance(self.max_frame_side, int) or self.max_frame_side < 64:
             raise ValueError('max_frame_side must be an integer >= 64')
+        if type(self.verify_objects) is not bool:
+            raise ValueError('verify_objects must be a boolean')
+        if type(self.verification_frame_side) is not int or self.verification_frame_side < 64:
+            raise ValueError('verification_frame_side must be an integer >= 64')
+        if type(self.max_object_checks) is not int or self.max_object_checks < 0:
+            raise ValueError('max_object_checks must be a nonnegative integer')
+        if not math.isfinite(self.object_check_seconds) or self.object_check_seconds <= 0:
+            raise ValueError('object_check_seconds must be finite and positive')
 
 
 @dataclass
