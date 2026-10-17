@@ -1,0 +1,82 @@
+{
+  "version": "2026.10.18.4",
+  "candidates": {
+    "customers_overlap_at_counter": {
+      "previous_customer_still_at_counter": "The earlier customer remains at the same service counter.",
+      "different_customer_starts_document_presentation": "A different customer starts presenting a document there while the earlier customer is still at the counter; show before and after without identifying people."
+    },
+    "cash_counting_without_customer": {
+      "cash_is_identified": "Visible currency-specific detail confirms banknotes, not documents.",
+      "direct_customer_cash_receipt": "Cash is visibly received directly from a customer, not internal processing.",
+      "cashier_counts_received_cash": "The cashier visibly counts that received cash.",
+      "customer_zone_fully_visible": "The whole relevant customer area is visible; an off-camera customer cannot be excluded otherwise.",
+      "customer_absent_during_counting": "The fully visible customer area is empty while that cash is being counted."
+    },
+    "previous_cash_outside_storage": {
+      "cash_is_identified": "Currency-specific detail confirms banknotes, not documents.",
+      "previous_receipt_completed": "The previous cash-receipt operation visibly finished. A person stepping aside alone is insufficient.",
+      "previous_cash_continuously_tracked": "The same earlier cash is tracked without temporal gaps or occlusion. Sparse sampled frames cannot establish continuous tracking; use unclear.",
+      "current_customer_receipt_in_progress": "Cash receipt from a different customer is visibly in progress.",
+      "previous_cash_remains_outside_storage": "That same previously received cash remains outside storage during the new receipt."
+    },
+    "key_left_in_safe_lock": {
+      "cashier_left_workplace": "The operator moves away from the safe; show before and after.",
+      "key_in_safe_lock_after_departure": "A key is distinguishable in the safe lock after departure, not just a handle or reflection."
+    },
+    "entrance_door_left_open": {
+      "operator_enters_room": "The operator enters through an identifiable entrance; show before and after.",
+      "entrance_remains_open_after_entry": "That entrance door visibly remains open after entry."
+    },
+    "personal_items_on_work_surface": {
+      "operator_starts_work": "Visible work starts at the workstation.",
+      "personal_bag_or_clothing_on_work_surface": "A bag or outer clothing remains on that work surface during work; do not infer ownership or contents."
+    },
+    "cash_container_left_on_work_surface": {
+      "cash_removed_from_container": "Visible banknotes are removed from a visible container; show before and after.",
+      "same_container_remains_on_work_surface": "That same container remains on the work surface after removal."
+    },
+    "workstation_left_with_screen_on": {
+      "cashier_left_workplace": "The same workstation operator moves away; show before and after.",
+      "screen_on_after_departure": "The same workstation screen visibly emits light after the operator leaves. Do not read its content or infer lock state."
+    },
+    "safe_left_open": {
+      "cashier_left_workplace": "The operator moves away from the safe; show before and after.",
+      "safe_open_after_departure": "The safe door is visibly open after the operator moves away. A closed door or visible key alone is insufficient."
+    },
+    "cash_on_desk_with_next_customer": {
+      "banknotes_on_work_surface": "Recognizable banknotes remain on the same work surface.",
+      "different_customer_approaches": "A different customer approaches that workstation while the previous customer departs or moves away; show before and after, without identifying people.",
+      "banknotes_remain_during_approach": "The same banknotes are still on the surface when the different customer approaches."
+    },
+    "documents_left_unattended": {
+      "cashier_left_workplace": "The operator moves away from the workstation; show before and after.",
+      "documents_remain_after_departure": "Documents visibly remain on that workstation after departure. Do not read personal text."
+    },
+    "customer_leaves_during_cash_check": {
+      "customer_left_counter": "The customer moves away from the counter; show before and after.",
+      "visible_cash_check_continues": "Visible banknote counting or detector use continues at that departure. Do not infer a hidden transaction state."
+    }
+  },
+  "rule_catalog_types": [
+    "cashier_leaves_during_service",
+    "cash_counting_without_customer",
+    "previous_cash_outside_storage",
+    "cash_processing_without_controller",
+    "cash_left_unattended",
+    "unauthorized_phone_use"
+  ],
+  "unsupported_continuous_tracking": "previous_cash_continuously_tracked",
+  "not_yet_in_rule_catalog": [
+    "customers_overlap_at_counter",
+    "key_left_in_safe_lock",
+    "entrance_door_left_open",
+    "personal_items_on_work_surface",
+    "cash_container_left_on_work_surface",
+    "workstation_left_with_screen_on",
+    "safe_left_open",
+    "cash_on_desk_with_next_customer",
+    "documents_left_unattended",
+    "customer_leaves_during_cash_check"
+  ],
+  "checks_are_observations_not_verdicts": true
+}

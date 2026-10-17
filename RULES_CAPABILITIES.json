@@ -1,0 +1,429 @@
+{
+  "rules_version": "rules-ai4.1",
+  "inference_version": "2026.10.18.4",
+  "real_video_quality_validated": false,
+  "rules": [
+    {
+      "type": "cashier_leaves_during_service",
+      "status": "conditional_contract",
+      "conditional_decision_code": true,
+      "temporal_policy": {
+        "simultaneous": [
+          "cashier_left_workplace",
+          "customer_service_ongoing"
+        ],
+        "after": [],
+        "anchor_last": true
+      },
+      "required_conditions": [
+        "cashier_left_workplace",
+        "customer_service_ongoing"
+      ],
+      "scope_conditions": [],
+      "exceptions": [],
+      "missing_ai4_fields": [],
+      "declared_inference_supported": "not_declared",
+      "known_ai_limitations": [],
+      "review_reason": null,
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "cash_counting_without_customer",
+      "status": "conditional_contract",
+      "conditional_decision_code": true,
+      "temporal_policy": {
+        "simultaneous": [
+          "cash_is_identified",
+          "cashier_counts_received_cash",
+          "customer_zone_fully_visible",
+          "customer_absent_during_counting"
+        ],
+        "after": [
+          "direct_customer_cash_receipt"
+        ]
+      },
+      "required_conditions": [
+        "cash_is_identified",
+        "direct_customer_cash_receipt",
+        "cashier_counts_received_cash",
+        "customer_zone_fully_visible",
+        "customer_absent_during_counting"
+      ],
+      "scope_conditions": [],
+      "exceptions": [],
+      "missing_ai4_fields": [],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": null,
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "previous_cash_outside_storage",
+      "status": "requires_continuous_tracking",
+      "conditional_decision_code": true,
+      "temporal_policy": {
+        "simultaneous": [
+          "cash_is_identified",
+          "previous_cash_continuously_tracked",
+          "current_customer_receipt_in_progress",
+          "previous_cash_remains_outside_storage"
+        ],
+        "after": [
+          "previous_receipt_completed"
+        ]
+      },
+      "required_conditions": [
+        "cash_is_identified",
+        "previous_receipt_completed",
+        "previous_cash_continuously_tracked",
+        "current_customer_receipt_in_progress",
+        "previous_cash_remains_outside_storage"
+      ],
+      "scope_conditions": [],
+      "exceptions": [],
+      "missing_ai4_fields": [],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [
+        "continuous_tracking_unavailable"
+      ],
+      "review_reason": null,
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "cash_processing_without_controller",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "internal_cash_processing",
+        "controller_absent"
+      ],
+      "scope_conditions": [],
+      "exceptions": [
+        "direct_customer_receipt_or_payout"
+      ],
+      "missing_ai4_fields": [
+        "controller_absent",
+        "direct_customer_receipt_or_payout",
+        "internal_cash_processing"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": null,
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "cash_left_unattended",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "Наличные находятся в рабочей зоне",
+        "Кассир отсутствует или не контролирует наличные"
+      ],
+      "scope_conditions": [],
+      "exceptions": [
+        "Кассир продолжает контролировать рабочую зону",
+        "Ситуация не связана с кассовой операцией"
+      ],
+      "missing_ai4_fields": [
+        "Кассир отсутствует или не контролирует наличные",
+        "Кассир продолжает контролировать рабочую зону",
+        "Наличные находятся в рабочей зоне",
+        "Ситуация не связана с кассовой операцией"
+      ],
+      "declared_inference_supported": "not_declared",
+      "known_ai_limitations": [],
+      "review_reason": null,
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "unauthorized_phone_use",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "Кассир использует телефон",
+        "В это время выполняется кассовая операция"
+      ],
+      "scope_conditions": [],
+      "exceptions": [
+        "Использование телефона разрешено процедурой",
+        "Телефон используется вне кассовой операции"
+      ],
+      "missing_ai4_fields": [
+        "В это время выполняется кассовая операция",
+        "Использование телефона разрешено процедурой",
+        "Кассир использует телефон",
+        "Телефон используется вне кассовой операции"
+      ],
+      "declared_inference_supported": "not_declared",
+      "known_ai_limitations": [],
+      "review_reason": null,
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "workstation_left_with_screen_on",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "cashier_left_workplace",
+        "screen_on_after_departure"
+      ],
+      "scope_conditions": [
+        "session_is_unlocked",
+        "unauthorized_access_possible"
+      ],
+      "exceptions": [
+        "authorized_staff_controls_workstation"
+      ],
+      "missing_ai4_fields": [
+        "authorized_staff_controls_workstation",
+        "session_is_unlocked",
+        "unauthorized_access_possible"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Светящийся экран не доказывает отсутствие блокировки или раскрытие данных; нужно проверенное правило доступа.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "safe_left_open",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "cashier_left_workplace",
+        "safe_open_after_departure"
+      ],
+      "scope_conditions": [
+        "previously_received_cash_in_safe",
+        "cash_storage_scope_established"
+      ],
+      "exceptions": [
+        "authorized_safe_operation_in_progress"
+      ],
+      "missing_ai4_fields": [
+        "authorized_safe_operation_in_progress",
+        "cash_storage_scope_established",
+        "previously_received_cash_in_safe"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Нужно установить режим хранения, содержимое и допустимость доступа; открытая дверца сама по себе недостаточна.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "key_left_in_safe_lock",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "cashier_left_workplace",
+        "key_in_safe_lock_after_departure"
+      ],
+      "scope_conditions": [
+        "cash_storage_lock_identified",
+        "key_accessible_to_unauthorized_person"
+      ],
+      "exceptions": [
+        "authorized_operator_controls_key"
+      ],
+      "missing_ai4_fields": [
+        "authorized_operator_controls_key",
+        "cash_storage_lock_identified",
+        "key_accessible_to_unauthorized_person"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Пункт 80 отсылает к внутреннему порядку обращения с ключами; конкретная процедура не предоставлена.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "documents_left_unattended",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "cashier_left_workplace",
+        "documents_remain_after_departure"
+      ],
+      "scope_conditions": [
+        "restricted_storage_required_for_documents",
+        "unauthorized_access_possible"
+      ],
+      "exceptions": [
+        "authorized_staff_controls_documents"
+      ],
+      "missing_ai4_fields": [
+        "authorized_staff_controls_documents",
+        "restricted_storage_required_for_documents",
+        "unauthorized_access_possible"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Не установлены категория документов, обязательный режим хранения и доступ посторонних; содержимое не читается.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "cash_on_desk_with_next_customer",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "banknotes_on_work_surface",
+        "different_customer_approaches",
+        "banknotes_remain_during_approach"
+      ],
+      "scope_conditions": [
+        "previous_receipt_completed",
+        "previous_cash_continuously_tracked",
+        "current_customer_receipt_in_progress"
+      ],
+      "exceptions": [
+        "cash_belongs_to_current_operation"
+      ],
+      "missing_ai4_fields": [
+        "cash_belongs_to_current_operation",
+        "current_customer_receipt_in_progress",
+        "previous_cash_continuously_tracked",
+        "previous_receipt_completed"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Подход другого клиента не доказывает нарушение п. 20; происхождение денег и этапы операций требуют отдельных фактов.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "customer_leaves_during_cash_check",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "customer_left_counter",
+        "visible_cash_check_continues"
+      ],
+      "scope_conditions": [
+        "direct_customer_cash_receipt",
+        "cashier_counts_received_cash",
+        "customer_zone_fully_visible",
+        "customer_absent_during_counting",
+        "cash_is_identified"
+      ],
+      "exceptions": [
+        "customer_still_present_outside_sampled_area"
+      ],
+      "missing_ai4_fields": [
+        "cash_is_identified",
+        "cashier_counts_received_cash",
+        "customer_absent_during_counting",
+        "customer_still_present_outside_sampled_area",
+        "customer_zone_fully_visible",
+        "direct_customer_cash_receipt"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Отход от стойки не доказывает отсутствие клиента. Проверка детектором не равна пересчёту при прямом приёме.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "customers_overlap_at_counter",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "previous_customer_still_at_counter",
+        "different_customer_starts_document_presentation"
+      ],
+      "scope_conditions": [
+        "sequential_service_required_by_verified_procedure"
+      ],
+      "exceptions": [
+        "joint_or_authorized_service"
+      ],
+      "missing_ai4_fields": [
+        "joint_or_authorized_service",
+        "sequential_service_required_by_verified_procedure"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Не подтверждено публичное основание, запрещающее само пересечение клиентов у стойки; требуется конкретная процедура.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "entrance_door_left_open",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "operator_enters_room",
+        "entrance_remains_open_after_entry"
+      ],
+      "scope_conditions": [
+        "door_is_cash_unit_service_entrance",
+        "required_isolation_compromised"
+      ],
+      "exceptions": [
+        "controlled_passage_in_progress"
+      ],
+      "missing_ai4_fields": [
+        "controlled_passage_in_progress",
+        "door_is_cash_unit_service_entrance",
+        "required_isolation_compromised"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Пункт 8 касается изоляции кассового узла. Нужно установить назначение двери и условия прохода; открытие при входе не равно нарушению.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "personal_items_on_work_surface",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "operator_starts_work",
+        "personal_bag_or_clothing_on_work_surface"
+      ],
+      "scope_conditions": [
+        "clear_surface_required_by_verified_procedure"
+      ],
+      "exceptions": [
+        "temporary_placement_permitted_by_procedure"
+      ],
+      "missing_ai4_fields": [
+        "clear_surface_required_by_verified_procedure",
+        "temporary_placement_permitted_by_procedure"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Обязательная публичная норма для такого размещения не подтверждена; нужны правила рабочего места.",
+      "real_accuracy_validated": false
+    },
+    {
+      "type": "cash_container_left_on_work_surface",
+      "status": "review_only",
+      "conditional_decision_code": false,
+      "temporal_policy": null,
+      "required_conditions": [
+        "cash_removed_from_container",
+        "same_container_remains_on_work_surface"
+      ],
+      "scope_conditions": [
+        "container_removal_required_by_verified_procedure"
+      ],
+      "exceptions": [
+        "container_still_in_authorized_use"
+      ],
+      "missing_ai4_fields": [
+        "container_removal_required_by_verified_procedure",
+        "container_still_in_authorized_use"
+      ],
+      "declared_inference_supported": false,
+      "known_ai_limitations": [],
+      "review_reason": "Пустой контейнер на столе сам по себе не устанавливает нарушение хранения; необходима конкретная обязанность убрать его.",
+      "real_accuracy_validated": false
+    }
+  ]
+}
