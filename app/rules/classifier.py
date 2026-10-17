@@ -2,6 +2,7 @@
 # app/rules/classifier.py
 
 from .actions import ACTION_CATALOG
+from .catalog import RULE_CATALOG
 
 
 def classify_observation(observation):
@@ -12,9 +13,17 @@ def classify_observation(observation):
 
     existing_type = observation.get("type", "unknown")
 
-    # Сохраняем тип, если AI уже указал
-    # известную категорию.
-    if existing_type in ACTION_CATALOG and existing_type != "unknown":
+    # Нейтральные действия не превращаем в кандидатов по описанию.
+    if isinstance(existing_type, str) and (
+        existing_type.startswith("document_") or existing_type == "object_transfer"
+    ):
+        return existing_type
+
+    # Тип из inference/каталога правил имеет приоритет над fallback.
+    # Сохранение типа ещё не подтверждает нарушение: это решает rule engine.
+    if existing_type != "unknown" and (
+        existing_type in ACTION_CATALOG or existing_type in RULE_CATALOG
+    ):
         return existing_type
 
     description = observation.get("description", "").lower()
