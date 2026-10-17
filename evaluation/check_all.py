@@ -14,7 +14,7 @@ def main():
                 test()
                 count += 1
     root = Path(__file__).resolve().parents[1]
-    names = ["evaluation.test_decision", "evaluation.test_integration"]
+    names = ["evaluation.test_decision", "evaluation.test_integration", "evaluation.test_cash_context"]
     names.extend("app.inference." + path.stem for path in sorted((root / "app/inference").glob("test_*.py")))
     suite = unittest.defaultTestLoader.loadTestsFromNames(names)
     result = unittest.TextTestRunner(verbosity=1).run(suite)

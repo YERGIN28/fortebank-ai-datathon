@@ -76,9 +76,12 @@ class HttpIntegrationTests(unittest.TestCase):
 
         class FakeModel:
             # Synthetic desired responses, not evidence of Qwen recognition quality.
-            def check_service_context(self, frames, deadline):
-                return {name: {"state": "observed", "frames": [0, len(frames) - 1]}
-                        for name in ("cashier_left_workplace", "customer_service_ongoing")}
+            def check_cash_rules_context(self, frames, deadline):
+                from app.rules.catalog import RULE_CATALOG
+                from app.rules.context import RULE_TYPES
+                return {name: [["o" if name == "previous_cash_outside_storage" else "r",
+                                 [0, len(frames)-1]] for _ in RULE_CATALOG[name]["conditions"]]
+                        for name in RULE_TYPES}
 
         class FakeEngine:
             model = FakeModel()
@@ -151,7 +154,7 @@ class HttpIntegrationTests(unittest.TestCase):
                             self.assertEqual(result["verdict"], "violation" if mode == "positive" else "no_violation")
                             if mode == "positive":
                                 event = result["violations"][0]
-                                self.assertIn("22", event["description"])
+                                self.assertIn("20", event["description"])
                                 image = Image.open(BytesIO(base64.b64decode(event["evidence_frames"][0]["image_base64"])))
                                 image.load()
                                 self.assertEqual(image.format, "JPEG")
