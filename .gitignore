@@ -1,0 +1,4 @@
+data/
+*.mov
+.env
+__pycache__/
