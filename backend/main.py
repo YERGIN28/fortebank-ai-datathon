@@ -13,6 +13,7 @@ from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 
 from backend.config import API_KEY, BASE_DIR
+from backend import config
 from backend.contracts import JobDoneResponse
 from backend.services.analyzer_service import VideoAnalyzer
 from backend.worker_lock import WorkerLock
@@ -175,7 +176,13 @@ def job_response(job_id):
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def root():
-    return (BASE_DIR / "backend/templates/index.html").read_text(encoding="utf-8")
+    html = (BASE_DIR / "backend/templates/index.html").read_text(encoding="utf-8")
+    notice = (
+        "Demo mode: results are simulated and do not confirm violations."
+        if config.ANALYSIS_MODE == "fake" else
+        "AI mode: final decisions are unavailable until the Rule Engine is completed."
+    )
+    return html.replace("__ANALYSIS_NOTICE__", notice)
 
 
 @app.post("/api/v1/analyze")

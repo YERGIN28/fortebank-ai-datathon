@@ -91,6 +91,8 @@ def test_public_schema_and_ui(client):
     assert "X-API-Key" not in html
     assert "data:image/jpeg;base64," in html
     assert "/ui/analyze" in html
+    assert "Demo mode" in html
+    assert "__ANALYSIS_NOTICE__" not in html
 
 
 @pytest.mark.parametrize("name", ["../../test.mov", r"C:\incoming\test.mov", "test.mov"])

@@ -1,10 +1,11 @@
 import time
 import requests
 import base64
+import os
+from backend.config import API_KEY, BASE_DIR
 
-API_URL = "http://127.0.0.1:8000"
-API_KEY = "forte-datathon-secret"
-VIDEO_PATH = "X-1.mov"
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+VIDEO_PATH = os.getenv("VIDEO_PATH", str(BASE_DIR / "X-1.mov"))
 
 
 def submit_video():
@@ -16,7 +17,7 @@ def submit_video():
             },
             files={
                 "file": (
-                    VIDEO_PATH,
+                    os.path.basename(VIDEO_PATH),
                     video_file,
                     "video/quicktime"
                 )
@@ -114,6 +115,8 @@ def validate_result(result):
 
 
 def main():
+    if not API_KEY:
+        raise RuntimeError("API_KEY must be set in .env or the environment")
     print("Submitting video...")
 
     job_id = submit_video()
@@ -153,4 +156,4 @@ def main():
                 "characters"
             )
 if __name__ == "__main__":
-    main()            
+    main()
