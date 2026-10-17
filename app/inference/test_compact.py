@@ -4,9 +4,9 @@ import json
 import tempfile
 import unittest
 
-from . import InferenceConfig, InferenceEngine
+from . import INFERENCE_VERSION, InferenceConfig, InferenceEngine
 from .batch_tools import summarize
-from .model import ModelOutputError, parse_compact_response
+from .model import ModelOutputError, parse_compact_response, has_complete_json
 from .pipeline import parse_observations
 from .synthetic import create_video
 from .video import SampledFrame
@@ -43,6 +43,31 @@ class CompactTests(unittest.TestCase):
         self.assertEqual(parse_compact_response('{"events":[]}'), [])
         self.assertEqual(parse_compact_response('```json\n{"events":[]}\n```'), [])
 
+    def test_short_rows_preserve_public_observations(self):
+        old = parse_compact_response('{"events":[{"s":0,"e":1,"a":"document_transfer","o":"id_document"}]}')
+        new = parse_compact_response('{"events":[[0,1,"document_transfer","id_document"]]}')
+        self.assertEqual(new, old)
+        self.assertEqual(new[0]['actors'], ['unknown'])
+        self.assertIsNone(new[0]['confidence'])
+        roles = parse_compact_response('{"events":[[0,1,"document_transfer","id_document",["customer"]]]}')
+        self.assertEqual(roles[0]['actors'], ['customer'])
+
+    def test_short_rows_reject_bad_width_and_frame_values(self):
+        for value in ('{"events":[[0,1,"unknown"]]}', '{"events":[[0,1,"unknown","unknown",[],0]]}'):
+            with self.subTest(value=value), self.assertRaises(ModelOutputError):
+                parse_compact_response(value)
+        rows = parse_compact_response('{"events":[[true,1,"unknown","unknown"]]}')
+        with self.assertRaises(ValueError):
+            parse_observations(rows, [SampledFrame(0, None), SampledFrame(1, None)], 1)
+
+    def test_json_stop_waits_for_whole_object(self):
+        for text in ('{"events":[]}', '{"events":[{"s":0,"e":1}]}',
+                     '```json\n{"events":[]}\n```'):
+            self.assertTrue(has_complete_json(text))
+        for text in ('', '{"events":[{"s":0}', '{"events":["}"]',
+                     '{"events":[', '[]', 'text {"events":[]}'):
+            self.assertFalse(has_complete_json(text))
+
     def test_compact_rejects_invalid_json_schema_and_excess(self):
         for value, code in (('{"events":[', 'invalid_json'), ('{}', 'invalid_model_schema'),
                             ('{"events":[{}, {}, {}]}', 'invalid_model_schema')):
@@ -69,9 +94,27 @@ class CompactTests(unittest.TestCase):
 
     def test_three_distinct_events_are_never_silently_truncated(self):
         rows = [{'s': i, 'e': i, 'a': 'document_handling', 'o': 'paper_document'} for i in range(3)]
+        parsed = parse_compact_response(json.dumps({'events': rows}))
+        self.assertEqual(len(parsed), 3)
+        self.assertEqual(len(parse_observations(parsed, [SampledFrame(i, None) for i in range(3)], 1)), 3)
+
+    def test_defensive_limit_still_rejects_excess(self):
+        rows = [{'s': 0, 'e': 1, 'a': 'unknown', 'o': 'unknown'}] * 33
         with self.assertRaises(ModelOutputError) as error:
             parse_compact_response(json.dumps({'events': rows}))
         self.assertEqual(error.exception.code, 'too_many_events')
+
+    def test_multiple_valid_events_do_not_make_video_partial(self):
+        class Multiple(Fake):
+            def observe(self, frames, deadline):
+                return parse_compact_response(json.dumps({'events': [
+                    {'s': 0, 'e': 1, 'a': 'document_transfer', 'o': kind, 'r': [role]}
+                    for kind, role in [('id_document', 'customer'), ('paper_document', 'cashier'),
+                                       ('unknown', 'unknown'), ('id_document', 'unknown')]]}))
+        result = InferenceEngine(self.config, model=Multiple()).analyze_video(self.path)
+        self.assertEqual(result.status, 'complete')
+        self.assertEqual(result.processed_windows, result.planned_windows)
+        self.assertTrue(any(message.startswith('event_count_above_target:') for message in result.warnings))
 
     def test_conflicting_aliases_and_seconds_are_rejected(self):
         for row in ({'s': 0, 'start_frame': 1, 'e': 1, 'a': 'unknown'},
@@ -137,6 +180,27 @@ class CompactTests(unittest.TestCase):
         self.assertEqual(config.max_object_checks, 3)
         self.assertEqual(config.object_check_seconds, 6)
         self.assertEqual(config.verification_frame_side, 640)
+
+    def test_result_identifies_loaded_implementation(self):
+        result = InferenceEngine(self.config, model=Fake()).analyze_video(self.path)
+        self.assertEqual(result.to_dict()['inference_version'], INFERENCE_VERSION)
+
+    def test_stage_timings_are_safe_and_include_failed_calls(self):
+        class Broken(Fake):
+            def observe(self, frames, deadline):
+                raise ModelOutputError('invalid_json')
+        result = InferenceEngine(self.config, model=Broken()).analyze_video(self.path)
+        self.assertGreater(result.stage_timings_sec['decode'], 0)
+        # Very short failed calls can round to zero at 0.1-ms report precision.
+        self.assertGreaterEqual(result.stage_timings_sec['observe'], 0)
+        self.assertEqual(result.stage_timings_sec['verify_object'], 0)
+        report = summarize({'videos': [result.to_dict()]})
+        self.assertEqual(report['stage_timings']['decode']['samples'], 1)
+        self.assertEqual(report['stage_timings']['observe']['total_sec'], result.stage_timings_sec['observe'])
+        # Old reports remain supported; unrecognized keys never leave the machine.
+        report = summarize({'videos': [{'status': 'complete', 'stage_timings_sec': {'private': 99}}]})
+        self.assertNotIn('private', str(report))
+        self.assertIsNone(report['stage_timings']['observe']['total_sec'])
 
     def test_config_rejects_invalid_check_budgets(self):
         for extra in ({'max_object_checks': -1}, {'max_object_checks': True},

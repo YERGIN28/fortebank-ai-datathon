@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 import time
-from .schemas import ACTOR_ROLES, OBJECT_KINDS, OBSERVATION_TYPES
+from .schemas import ACTOR_ROLES, OBJECT_KINDS, OBSERVATION_TYPES, MAX_EVENTS_PER_WINDOW
 
 OUTPUT_CODES = {'invalid_json', 'json_token_limit', 'invalid_model_schema',
                 'too_many_events', 'invalid_object_json'}
@@ -37,6 +37,14 @@ def strip_json_fence(answer):
     return answer
 
 
+def has_complete_json(answer):
+    """Stop on a full JSON object, never on a nested brace or incomplete string."""
+    try:
+        return isinstance(json.loads(strip_json_fence(answer)), dict)
+    except (ValueError, TypeError):
+        return False
+
+
 def parse_compact_response(answer):
     """Keep output short; descriptions are grounded action templates, not narration."""
     try:
@@ -49,10 +57,15 @@ def parse_compact_response(answer):
     if 'events' in payload and 'observations' in payload and payload['events'] != payload['observations']:
         raise ModelOutputError('invalid_model_schema')
     events = payload.get('events', payload.get('observations'))
-    if not isinstance(events, list) or len(events) > 32:
+    if not isinstance(events, list):
         raise ModelOutputError('invalid_model_schema')
+    if len(events) > MAX_EVENTS_PER_WINDOW:
+        raise ModelOutputError('too_many_events')
     result = []
     for item in events:
+        # Short rows reduce autoregressive output; the public contract is unchanged.
+        if isinstance(item, list) and len(item) in (4, 5):
+            item = dict(zip(('s', 'e', 'a', 'o', 'r'), item))
         if not isinstance(item, dict):
             raise ModelOutputError('invalid_model_schema')
         item = dict(item)
@@ -78,8 +91,6 @@ def parse_compact_response(answer):
                'description': ACTION_DESCRIPTIONS[action], 'confidence': None}
         if row not in result:
             result.append(row)
-    if len(result) > 2:
-        raise ModelOutputError('too_many_events')
     return result
 
 def parse_model_response(answer: str) -> list[dict]:
@@ -145,13 +156,21 @@ class QwenModel:
         inputs = self.processor.apply_chat_template(
             [{'role': 'user', 'content': content}], tokenize=True,
             add_generation_prompt=True, return_dict=True, return_tensors='pt').to('cuda:0')
+        prompt_length = inputs['input_ids'].shape[1]
+        processor = self.processor
+
+        class JsonComplete(StoppingCriteria):
+            def __call__(self, input_ids, scores, **kwargs):
+                answer = processor.batch_decode(input_ids[:, prompt_length:],
+                                                skip_special_tokens=True)[0]
+                return has_complete_json(answer)
         if time.perf_counter() >= deadline:
             raise TimeoutError('Preprocessing exhausted the time budget')
         with self.torch.inference_mode():
             output = self.model.generate(
                 **inputs, do_sample=False, temperature=1.0, top_p=1.0, top_k=50,
-                max_new_tokens=max_new_tokens,
-                stopping_criteria=StoppingCriteriaList([Deadline()]))
+                max_new_tokens=max_new_tokens, use_cache=True,
+                stopping_criteria=StoppingCriteriaList([Deadline(), JsonComplete()]))
         self.torch.cuda.synchronize()
         if time.perf_counter() >= deadline:
             raise TimeoutError('Generation exhausted the time budget')
