@@ -1,43 +1,25 @@
 # Сквозная проверка на искусственном MOV
 
-## Что уже проверено и что требуется
+## Общая сборка
 
-Проверка Qwen и тесты inference выполняются отдельно от backend.
-В доступном локальном снимке origin/backend обработчик process_video ещё
-возвращает Test violation после sleep(20), без вызова модели и правил.
-Это снимок remote-tracking ref, не проверка свежего состояния GitHub.
-В снимке origin/feat/rules-evaluation функция evaluation.run_rules.process_video
-принимает словарь video_id/status/observations и возвращает verdict/violations/candidates.
-Сейчас она всегда выдаёт needs_review: нормативные условия ещё не реализованы.
+В `codex/integrated-pipeline` уже собраны backend/UI из `backend`, inference
+из `ai` (3092f9e) и финальные правила из `feat/rules-evaluation` (dcc124c).
+Backend вызывает `backend.services.analyzer_service.analyze_video()`, затем
+локальную проверку контекста и `app.rules.decision.build_job_result()`.
+Заглушка Test violation удалена. В HTTP-ответе нет candidates или needs_review.
+Финальные статусы: done с violation/no_violation либо failed с причиной.
 
-Ерасыл собирает совместимую версию backend + app/inference + rules + evaluation.
-Рабочую ветку Айсаны не переключать. Копировать venv из другой ветки не нужно.
-Пример подключения в его обработчике (изменения в backend делает Ерасыл):
+Команды установки, настройки MODEL_PATH/API_KEY и запуска: [README](../../README.md).
+Сервер запускается одним worker из корня общей папки:
 
-```python
-from evaluation.run_rules import process_video as apply_rules
-from app.inference import InferenceConfig, InferenceEngine
-
-# Внутри единственного worker, перед очередью:
-engine = InferenceEngine(InferenceConfig(model_path=LOCAL_MODEL_PATH))
-engine.load()
-
-# В обработчике одного задания:
-result = engine.analyze_video(file_path)
-if result.status != 'complete':
-    jobs[job_id] = {'job_id': job_id, 'status': 'failed',
-                    'error': 'incomplete_inference'}
-else:
-    ruled = apply_rules({'video_id': job_id, **result.to_dict()})
-    jobs[job_id] = {'job_id': job_id, 'status': 'done',
-                    'verdict': ruled['verdict'],
-                    'violations': ruled['violations'],
-                    'candidates': ruled.get('candidates', [])}
+```powershell
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-LOCAL_MODEL_PATH — локальная Path папки Qwen. Исключения обрабатывает backend.
-Шаблоны и финальный HTTP формат остаются ответственностью Ерасыла.
-needs_review не превращать в подтверждённое violation или no_violation.
+Используйте Python подготовленного окружения Айсаны. Дождитесь
+`ready: true` от `GET /health`; без загруженной локальной модели загрузка
+видео получает 503. Частичный анализ и нерешённые unknown не становятся
+отрицательным вердиктом. Правила и ограничение охвата: [описание](../../docs/rule_decisions.md).
 
 ## Проверка существующего сервиса
 
@@ -64,4 +46,5 @@ needs_review не превращать в подтверждённое violation
 загрузить искусственный MOV и проверить отображение processing → done/failed.
 Сам HTTP-пробник проверяет доставку HTML, но не интерактивный интерфейс.
 
-Полный сквозной запуск здесь пока не выполнен: в ветке ai нет собранного backend.
+HTTP-путь общей сборки проверен на искусственном MOV с подменённой моделью.
+Настоящий Qwen и качество на кассовых видео нужно проверить на GPU-хосте команды.

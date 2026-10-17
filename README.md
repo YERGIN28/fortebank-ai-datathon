@@ -3,7 +3,7 @@
 Интеграционная ветка `codex/integrated-pipeline`: backend, UI, локальный inference
 и правила собраны в одном checkout. Веса и приватные видео в репозиторий не входят.
 
-Основа исходников: `ai` на `40ba3b8`, `backend` на `7b6d0d4`,
+Основа исходников: `ai` на `3092f9e`, `backend` на `7b6d0d4`,
 `feat/rules-evaluation` на `dcc124c`. Скопированы только исходники модулей;
 чужие `venv`, pycache, веса и данные не переносились. Рабочие ветки команды
 сохраняются отдельно. Интеграционные правки нужно проверять в этой ветке.
@@ -24,6 +24,20 @@ Copy-Item .env.example .env
 ```powershell
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
+
+`python` здесь должен указывать на подготовленное окружение с Qwen, а не на
+системный Python. При необходимости замените его на полный путь:
+`& 'C:\путь\к\окружению\.venv\Scripts\python.exe' -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1`.
+
+Для свежей отдельной папки можно сначала получить именно общую ветку:
+
+```powershell
+git clone --branch codex/integrated-pipeline --single-branch https://github.com/YERGIN28/fortebank-ai-datathon.git fortebank-integrated
+Set-Location fortebank-integrated
+```
+
+Если эта ветка уже открыта, достаточно `git pull --ff-only`. Не запускать второй
+экземпляр Qwen одновременно с сервером.
 
 `GET /health` должен вернуть `ready: true`. До загрузки модели приём файлов
 отвечает 503. Веса во время обработки не скачиваются, используется локальный
