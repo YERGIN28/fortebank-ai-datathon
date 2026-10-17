@@ -3,3 +3,8 @@ data/
 .env
 __pycache__/   
 results/
+uploads/
+.testdeps/
+.testtmp/
+.venv/
+venv/

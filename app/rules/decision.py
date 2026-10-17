@@ -78,7 +78,9 @@ def decide_video(inference_result):
             continue
         times = sorted(set(timestamps))
         # Keep up to three points including the first and last context frames.
-        selected = times if len(times) <= 3 else [times[0], times[len(times) // 2], times[-1]]
+        primary = max(checks["cashier_left_workplace"]["evidence_timestamps_sec"])
+        context = times if len(times) <= 3 else [times[0], times[len(times) // 2], times[-1]]
+        selected = [primary] + [t for t in context if t != primary][:2]
         regulation = rule["regulation"]
         confirmed.append({
             "type": rule["title"],

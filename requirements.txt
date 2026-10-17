@@ -1,0 +1,7 @@
+# Team-tested Python 3.11 / CUDA environment.
+-r app/inference/requirements.txt
+fastapi==0.143.3
+uvicorn==0.54.0
+python-multipart==0.0.32
+python-dotenv==1.2.4
+openpyxl>=3.1,<4
