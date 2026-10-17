@@ -32,7 +32,7 @@ class VideoReader:
             raise
 
     def sample(self, start: float, end: float, count: int,
-               deadline: float) -> list[SampledFrame]:
+               deadline: float, *, max_side: int | None = None) -> list[SampledFrame]:
         targets = [start + (end - start) * i / count for i in range(count)]
         self.container.seek(int((start + self.origin) / self.stream.time_base),
                             stream=self.stream, backward=True, any_frame=False)
@@ -48,7 +48,7 @@ class VideoReader:
                 break
             if timestamp < targets[target_index] - 1e-6:
                 continue
-            scale = min(1.0, self.max_side / max(frame.width, frame.height))
+            scale = min(1.0, (max_side or self.max_side) / max(frame.width, frame.height))
             image = frame.reformat(width=max(1, int(frame.width * scale)),
                                    height=max(1, int(frame.height * scale)),
                                    format='rgb24').to_image()

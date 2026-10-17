@@ -127,7 +127,7 @@ class SyntheticTests(unittest.TestCase):
     def test_source_timestamps_not_model_numbers(self):
         frames = [SampledFrame(10.25, None), SampledFrame(11.75, None)]
         result = parse_observations([{'start_frame': 0, 'end_frame': 1,
-                                     'description': 'synthetic transfer'}], frames, 1.5)
+                                     'description': 'A small object is transferred.'}], frames, 1.5)
         self.assertEqual(result[0].start_sec, 10.25)
         self.assertEqual(result[0].end_sec, 11.75)
         self.assertEqual(result[0].evidence_timestamps_sec, [10.25, 11.75])
@@ -135,7 +135,8 @@ class SyntheticTests(unittest.TestCase):
     def test_rule_engine_fields_and_uncalibrated_confidence(self):
         frames = [SampledFrame(55, None), SampledFrame(62, None)]
         row = {'start_frame': 0, 'end_frame': 1, 'description': 'synthetic cash action',
-               'type': 'cash_left_unattended', 'actors': ['cashier'], 'confidence': 0.99}
+               'type': 'cash_left_unattended', 'object_kind': 'banknote',
+               'actors': ['cashier'], 'confidence': 0.99}
         observation = parse_observations([row], frames, 2)[0]
         self.assertEqual(observation.type, 'cash_left_unattended')
         self.assertEqual(observation.actors, ['cashier'])
@@ -144,7 +145,7 @@ class SyntheticTests(unittest.TestCase):
     def test_unknown_types_roles_and_missing_fields(self):
         for extra in ({}, {'type': 'not_agreed', 'actors': ['person_name', 'person_name']},
                       {'type': None, 'actors': []}):
-            row = {'start_frame': 0, 'end_frame': 0, 'description': 'synthetic', **extra}
+            row = {'start_frame': 0, 'end_frame': 0, 'description': 'A small object is transferred.', **extra}
             observation = parse_observations([row], [SampledFrame(0, None)], 1)[0]
             self.assertEqual(observation.type, 'unknown')
             self.assertEqual(observation.actors, ['unknown'])
@@ -202,7 +203,7 @@ class SyntheticTests(unittest.TestCase):
             parse_observations(rows, [SampledFrame(0, None)], 1)
 
     def test_refinement(self):
-        model = FakeModel([{'start_frame': 0, 'end_frame': 1, 'description': 'synthetic motion'}])
+        model = FakeModel([{'start_frame': 0, 'end_frame': 1, 'description': 'A small object is transferred.'}])
         result = InferenceEngine(replace(self.config, refine=True), model=model).analyze_video(self.path)
         self.assertEqual(result.status, 'complete')
         self.assertEqual(model.calls, 6)
@@ -218,7 +219,7 @@ class SyntheticTests(unittest.TestCase):
             def observe(self, frames, deadline):
                 self.calls += 1
                 if self.calls <= 3:
-                    return [{'start_frame': 0, 'end_frame': 1, 'description': 'synthetic'}]
+                    return [{'start_frame': 0, 'end_frame': 1, 'description': 'A small object is transferred.'}]
                 return []
         result = InferenceEngine(replace(self.config, refine=True), model=Alternating()).analyze_video(self.path)
         self.assertEqual(len(result.observations), 3)
