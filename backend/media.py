@@ -48,3 +48,31 @@ def extract_frame_base64(video_path: str, timestamp_sec: float):
         "timestamp_sec": round(best_timestamp, 3),
         "image_base64": image_base64
     }
+
+
+
+def validate_video(video_path: str):
+    cap = cv2.VideoCapture(video_path)
+
+    if not cap.isOpened():
+        cap.release()
+        raise RuntimeError("Could not open video file")
+
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    duration_sec = 0
+
+    if fps and fps > 0:
+        duration_sec = frame_count / fps
+
+    success, _ = cap.read()
+    cap.release()
+
+    if not success:
+        raise RuntimeError("Video contains no readable frames")
+
+    return {
+        "frame_count": frame_count,
+        "fps": fps,
+        "duration_sec": duration_sec
+    }
