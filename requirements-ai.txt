@@ -1,0 +1,4 @@
+-r requirements.txt
+-r app/inference/requirements.txt
+# Compatible with the team's transformers 4.57.6; do not install hub 2.x.
+huggingface-hub>=0.34.0,<1.0
