@@ -25,7 +25,8 @@ def main():
         for name,test in inspect.getmembers(importlib.import_module(module_name),inspect.isfunction):
             if name.startswith('test_'):
                 test();legacy+=1
-    names=['evaluation.test_decision','evaluation.test_ai4_rules','evaluation.test_ai4_integration']
+    names=['evaluation.test_decision','evaluation.test_ai4_rules','evaluation.test_ai4_integration',
+           'evaluation.test_temporal']
     if args.with_inference:
         import app.inference
         source=Path(app.inference.__file__).parent

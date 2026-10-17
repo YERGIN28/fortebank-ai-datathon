@@ -4,6 +4,7 @@ import base64
 from .actions import ACTION_CATALOG
 from .catalog import RULE_CATALOG
 from .engine import is_valid_time
+from .temporal import confirmed_time
 
 
 def _failed(reason):
@@ -89,9 +90,12 @@ def decide_video(inference_result):
                 or rule.get("decision_mode") == "review_only"):
             unresolved.append(event_type)
             continue
+        primary = confirmed_time(rule, checks)
+        if primary is None:
+            # Contradiction or missing temporal proof is not a negative verdict.
+            unresolved.append(event_type)
+            continue
         times = sorted(set(timestamps))
-        # Localize the action specified by this rule, not a preceding context frame.
-        primary = max(checks[rule.get("time_condition", rule["conditions"][0])]["evidence_timestamps_sec"])
         context = times if len(times) <= 3 else [times[0], times[len(times) // 2], times[-1]]
         selected = [primary] + [t for t in context if t != primary][:2]
         regulation = rule["regulation"]

@@ -15,7 +15,7 @@ def observation(event_type="cashier_leaves_during_service"):
         "description": "Synthetic observation", "evidence_timestamps_sec": [10, 15],
         "condition_checks": {
             "cashier_left_workplace": {"state": "observed", "evidence_timestamps_sec": [10]},
-            "customer_service_ongoing": {"state": "observed", "evidence_timestamps_sec": [15]},
+            "customer_service_ongoing": {"state": "observed", "evidence_timestamps_sec": [10, 15]},
         },
     }
 

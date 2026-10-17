@@ -1,0 +1,20 @@
+--- a/tests/test_backend.py
++++ b/tests/test_backend.py
+@@ -402,7 +402,7 @@
+     event = {"type": "cashier_leaves_during_service", "start_sec": 0, "end_sec": 1,
+              "condition_checks": {
+                  "cashier_left_workplace": {"state": "observed", "evidence_timestamps_sec": [0.2]},
+-                 "customer_service_ongoing": {"state": "observed", "evidence_timestamps_sec": [0.5]}}}
++                 "customer_service_ongoing": {"state": "observed", "evidence_timestamps_sec": [0.2, 0.5]}}}
+     analyzer = real_analyzer(observations=[event])
+     original = service.VideoAnalyzer.run_analysis
+     monkeypatch.setattr(service.VideoAnalyzer, "run_analysis", lambda self, path: original(analyzer, path))
+@@ -461,7 +461,7 @@
+             return {
+                 "cashier_left_workplace": {"state": "observed", "frames": [0, len(frames) - 1]},
+                 "customer_service_ongoing": {
+-                    "state": condition, "frames": [] if condition == "unclear" else [1],
++                    "state": condition, "frames": [] if condition == "unclear" else [len(frames) - 1],
+                 },
+             }
+ 

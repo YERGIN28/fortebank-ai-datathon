@@ -15,6 +15,10 @@ RULE_CATALOG = {
         "conditions": ["cashier_left_workplace", "customer_service_ongoing"],
         "exceptions": [],
         "time_condition": "cashier_left_workplace",
+        "temporal_policy": {
+            "simultaneous": ["cashier_left_workplace", "customer_service_ongoing"],
+            "after": [], "anchor_last": True,
+        },
         "regulation": {
             "document": "Постановление НБРК от 29.11.2019 № 231",
             "paragraph": "22",
@@ -38,6 +42,11 @@ RULE_CATALOG = {
         ],
         "exceptions": [],
         "time_condition": "cashier_counts_received_cash",
+        "temporal_policy": {
+            "simultaneous": ["cash_is_identified", "cashier_counts_received_cash",
+                             "customer_zone_fully_visible", "customer_absent_during_counting"],
+            "after": ["direct_customer_cash_receipt"],
+        },
         "visibility_conditions": ["customer_zone_fully_visible"],
         "limitations": [
             "Человек вне кадра не доказывает отсутствие клиента",
@@ -68,6 +77,11 @@ RULE_CATALOG = {
         ],
         "exceptions": [],
         "time_condition": "previous_cash_remains_outside_storage",
+        "temporal_policy": {
+            "simultaneous": ["cash_is_identified", "previous_cash_continuously_tracked",
+                             "current_customer_receipt_in_progress", "previous_cash_remains_outside_storage"],
+            "after": ["previous_receipt_completed"],
+        },
         "visibility_conditions": ["previous_cash_continuously_tracked"],
         "limitations": [
             "Наличные текущего клиента могут находиться на рабочем месте",

@@ -1,0 +1,26 @@
+{
+  "rules_version": "rules-ai4.1",
+  "rules_ai4_checks": {
+    "tests": 194,
+    "subtests": 406,
+    "skipped": 0,
+    "passed": true
+  },
+  "integrated_checks": {
+    "backend_base": "2da88c1",
+    "inference": "2026.10.18.4",
+    "backend_fixture_patch_applied": true,
+    "tests": 234,
+    "subtests": 406,
+    "passed": true
+  },
+  "original_disjoint_evidence_reproduction": {
+    "before": "done/violation",
+    "after": "failed/no_verdict"
+  },
+  "new_temporal_tests": 14,
+  "real_data_accessed": false,
+  "gpu_or_real_quality_measured": false,
+  "production_backend_modified": false,
+  "committed_or_pushed": false
+}

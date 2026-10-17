@@ -92,6 +92,9 @@ class AI4ContractTests(unittest.TestCase):
             event=event_for(name)
             key=RULE_CATALOG[name]['time_condition']
             event['condition_checks'][key]['evidence_timestamps_sec']=[14]
+            # The chosen action point must also have simultaneous supporting facts.
+            for condition in RULE_CATALOG[name]['temporal_policy']['simultaneous']:
+                event['condition_checks'][condition]['evidence_timestamps_sec']=[14]
             with self.subTest(candidate=name):
                 result=decide_video(video(event))
                 self.assertEqual(result['violations'][0]['timecode_sec'],14)
