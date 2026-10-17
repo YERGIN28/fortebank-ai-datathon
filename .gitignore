@@ -1,4 +1,5 @@
 data/
 *.mov
 .env
-__pycache__/
+__pycache__/   
+results/
