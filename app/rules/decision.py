@@ -3,7 +3,6 @@ import base64
 
 from .actions import ACTION_CATALOG
 from .catalog import RULE_CATALOG
-from .classifier import classify_observations
 from .engine import is_valid_time
 
 
@@ -45,20 +44,22 @@ def decide_video(inference_result):
             return _failed("invalid_observation_time")
         if not isinstance(original.get("description", ""), str):
             return _failed("invalid_observation_description")
-        event = classify_observations([original])[0]
+        # Text fallback is diagnostic only: it cannot remove an unknown candidate
+        # or establish a final decision. Use the typed AI contract and checks.
+        event = original
         event_type = event["type"]
-        if (event_type in ACTION_CATALOG and event_type != "unknown") or event_type.startswith("document_"):
+        if event_type not in RULE_CATALOG and event_type in ACTION_CATALOG and event_type != "unknown":
             continue
         rule = RULE_CATALOG.get(event_type)
-        if (not rule or not rule.get("verified") or not rule.get("regulation")
-                or rule.get("decision_mode") == "review_only"):
+        if not rule:
             unresolved.append(event_type)
             continue
         checks = event.get("condition_checks", {})
         if not isinstance(checks, dict):
             return _failed("invalid_condition_checks")
         states, timestamps = [], []
-        required_names = rule["conditions"] + rule.get("exceptions", [])
+        conditions = rule["conditions"] + rule.get("scope_conditions", [])
+        required_names = conditions + rule.get("exceptions", [])
         for name in required_names:
             check = checks.get(name, {})
             if not isinstance(check, dict):
@@ -76,12 +77,16 @@ def decide_video(inference_result):
                 effective = "unclear"  # Poor visibility is not counterevidence.
             states.append(effective)
             timestamps.extend(evidence)
-        condition_states = states[:len(rule["conditions"])]
-        exception_states = states[len(rule["conditions"]):]
+        condition_states = states[:len(conditions)]
+        exception_states = states[len(conditions):]
         if "refuted" in condition_states or "observed" in exception_states:
             continue
         if (not condition_states or any(state != "observed" for state in condition_states)
                 or any(state != "refuted" for state in exception_states)):
+            unresolved.append(event_type)
+            continue
+        if (not rule.get("verified") or not rule.get("regulation")
+                or rule.get("decision_mode") == "review_only"):
             unresolved.append(event_type)
             continue
         times = sorted(set(timestamps))

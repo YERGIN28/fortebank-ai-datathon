@@ -5,6 +5,7 @@
 #
 # verified означает проверенный источник, а не подтверждение события на видео.
 # Для окончательного решения нужны condition_checks и наблюдаемые доказательства.
+from .ai4_catalog import AI4_REVIEW_RULES
 
 RULE_CATALOG = {
     "cashier_leaves_during_service": {
@@ -138,6 +139,8 @@ RULE_CATALOG = {
         "verified": False,
     },
 }
+
+RULE_CATALOG.update(AI4_REVIEW_RULES)
 
 # Проверенные нормативные основания.
 # Это не автоматические вердикты о нарушениях.

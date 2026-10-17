@@ -15,6 +15,10 @@ def process_video(video):
     status = video.get("status", "failed")
 
     decision = decide_video(video)
+    # Evaluator uses complete, while the public job adapter uses done.
+    # Only an actual final verdict is normalized; failed stays failed.
+    if decision["status"] == "done":
+        decision = {**decision, "status": "complete"}
     observations = video.get("observations", [])
     candidates = []
     if status == "complete" and isinstance(observations, list):

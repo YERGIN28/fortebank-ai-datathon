@@ -2,6 +2,7 @@
 # app/rules/engine.py
 
 import math
+import copy
 
 try:
     from .catalog import RULE_CATALOG
@@ -84,6 +85,9 @@ def check_events(events):
             "regulation": rule.get("regulation"),
             "verified": rule.get("verified", False),
             "status": "needs_review",
+            "condition_checks": copy.deepcopy(event.get("condition_checks", {})),
+            "decision_mode": rule.get("decision_mode", "conditional"),
+            "review_reason": rule.get("review_reason"),
         })
 
     return candidates
