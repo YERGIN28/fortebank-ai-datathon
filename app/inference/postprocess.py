@@ -6,7 +6,8 @@ import unicodedata
 from .schemas import OBSERVATION_TYPES, Observation
 
 HANDHELD_ACTIONS = {'cash_handling', 'cash_transfer', 'cash_left_unattended',
-                    'document_handling', 'document_transfer', 'object_transfer'}
+                    'document_handling', 'document_transfer', 'object_transfer', 'object_handling',
+                    'cash_returned_after_check'}
 CONTINUOUS_ACTIONS = {'cash_handling', 'document_handling', 'cash_left_unattended'}
 DOCUMENTS = {'id_document', 'paper_document'}
 
@@ -41,6 +42,13 @@ def normalize_action(row: dict) -> dict | None:
         return row
     if kind == 'none':
         return None
+    if action == 'cash_returned_after_check':
+        if kind == 'banknote':
+            return row
+        row['type'] = 'document_transfer' if kind in DOCUMENTS else 'object_transfer'
+        row['description'] = ('A document is transferred.' if kind in DOCUMENTS else
+                              'A small object is transferred; its type is unclear.')
+        return row
     if action == 'cash_left_unattended':
         # A document or an unidentified object cannot justify an unattended-cash claim.
         if kind == 'banknote':
@@ -62,7 +70,7 @@ def normalize_action(row: dict) -> dict | None:
             subject = 'An identity document' if kind == 'id_document' else 'A paper document'
             row['description'] = subject + (' is transferred between people.' if transfer else ' is handled.')
     else:
-        row['type'] = 'object_transfer' if transfer else 'unknown'
+        row['type'] = 'object_transfer' if transfer else 'object_handling'
         row['description'] = ('A small object is transferred; its type is unclear.' if transfer
                               else 'A small object is handled; its type is unclear.')
     return row

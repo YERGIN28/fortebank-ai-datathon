@@ -5,3 +5,5 @@ opencv-python==4.11.0.86
 python-dotenv==1.2.4
 python-multipart==0.0.32
 requests==2.34.2
+psutil==7.1.0
+httpx==0.28.1

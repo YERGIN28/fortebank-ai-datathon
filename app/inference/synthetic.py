@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def create_video(path: Path, duration_seconds: float = 4.0,
-                 width: int = 320, height: int = 240):
+                 width: int = 320, height: int = 240, codec: str = 'mpeg4'):
     import math
     if not math.isfinite(duration_seconds) or duration_seconds <= 0:
         raise ValueError('duration_seconds must be finite and positive')
@@ -13,7 +13,9 @@ def create_video(path: Path, duration_seconds: float = 4.0,
     import av
     from PIL import Image, ImageDraw
     with av.open(str(path), 'w', format='mov') as container:
-        stream = container.add_stream('mpeg4', rate=10)
+        if codec not in ('mpeg4', 'libx264'):
+            raise ValueError('Unsupported synthetic codec')
+        stream = container.add_stream(codec, rate=10)
         stream.width, stream.height = width, height
         stream.pix_fmt = 'yuv420p'
         for index in range(math.ceil(duration_seconds * 10)):

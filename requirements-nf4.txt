@@ -1,0 +1,2 @@
+# Optional 4-bit local inference; install after the pinned CUDA AI environment.
+bitsandbytes==0.48.1

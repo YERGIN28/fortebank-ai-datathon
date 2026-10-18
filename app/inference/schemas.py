@@ -6,13 +6,23 @@ import math
 OBSERVATION_TYPES = (
     'cash_handling', 'cash_transfer', 'cash_left_unattended',
     'cash_drawer_opened', 'cash_drawer_closed',
-    'document_handling', 'document_transfer', 'object_transfer', 'unknown',
+    'document_handling', 'document_transfer', 'object_transfer', 'object_handling', 'unknown',
     'cashier_leaves_during_service',
+    'workstation_left_with_screen_on', 'safe_left_open',
+    'cash_on_desk_with_next_customer', 'documents_left_unattended',
+    'customer_leaves_during_cash_check',
+    'cash_counting_without_customer', 'previous_cash_outside_storage',
+    'key_left_in_safe_lock', 'entrance_door_left_open',
+    'personal_items_on_work_surface', 'cash_container_left_on_work_surface',
+    'customers_overlap_at_counter',
+    'stamp_left_unattended', 'cash_on_desk_during_break', 'cash_left_after_counting',
+    'safe_open_during_other_activity', 'cash_received_without_visible_id_check',
+    'cash_stored_without_visible_check', 'cash_returned_after_check',
 )
 OBJECT_KINDS = ('banknote', 'id_document', 'paper_document', 'unknown', 'none')
 ACTOR_ROLES = ('cashier', 'customer', 'unknown')
 MAX_EVENTS_PER_WINDOW = 32  # Defensive parser bound, not a detection target.
-INFERENCE_VERSION = '2026.10.18.3'
+INFERENCE_VERSION = '2026.10.18.10'
 
 
 @dataclass(frozen=True)
@@ -34,8 +44,14 @@ class InferenceConfig:
     service_check_seconds: float = 10.0
     check_relevance: bool = False  # Experimental: can miss true events; opt-in only.
     relevance_check_seconds: float = 5.0
+    verify_positive_conditions: bool = False  # Enable in service; separate pass, same local model.
+    positive_check_seconds: float = 8.0
+    max_positive_checks: int = 3
+    quantization: str = 'none'
 
     def __post_init__(self):
+        if self.quantization not in ('none', 'nf4'):
+            raise ValueError('quantization must be none or nf4')
         for name in ('window_seconds', 'overlap_seconds', 'time_budget_seconds'):
             if not math.isfinite(getattr(self, name)):
                 raise ValueError(f'{name} must be finite')
@@ -65,6 +81,12 @@ class InferenceConfig:
             raise ValueError('check_relevance must be a boolean')
         if not math.isfinite(self.relevance_check_seconds) or self.relevance_check_seconds <= 0:
             raise ValueError('relevance_check_seconds must be finite and positive')
+        if type(self.verify_positive_conditions) is not bool:
+            raise ValueError('verify_positive_conditions must be a boolean')
+        if not math.isfinite(self.positive_check_seconds) or self.positive_check_seconds <= 0:
+            raise ValueError('positive_check_seconds must be finite and positive')
+        if type(self.max_positive_checks) is not int or self.max_positive_checks < 0:
+            raise ValueError('max_positive_checks must be a nonnegative integer')
 
 
 @dataclass

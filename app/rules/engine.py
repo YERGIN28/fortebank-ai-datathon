@@ -2,6 +2,7 @@
 # app/rules/engine.py
 
 import math
+import copy
 
 try:
     from .catalog import RULE_CATALOG
@@ -18,7 +19,7 @@ def is_valid_time(value):
     )
 
 
-def check_events(events):
+def check_events(events, *, assessment_mode='strict'):
     """
     Принимает наблюдения AI.
     Возвращает кандидатов для ручной проверки.
@@ -26,15 +27,22 @@ def check_events(events):
     Не подтверждает нарушения автоматически.
     """
 
+    if assessment_mode == 'possible_signs':
+        from .indicator_catalog import INDICATOR_CATALOG
+        catalog = INDICATOR_CATALOG
+    elif assessment_mode == 'strict':
+        catalog = RULE_CATALOG
+    else:
+        raise ValueError('Unknown assessment mode')
     candidates = []
 
     for event in events:
         event_type = event.get("type", "unknown")
 
-        if event_type not in RULE_CATALOG:
+        if event_type not in catalog:
             continue
 
-        rule = RULE_CATALOG[event_type]
+        rule = catalog[event_type]
 
         start_sec = event.get("start_sec")
         end_sec = event.get("end_sec")
@@ -84,6 +92,9 @@ def check_events(events):
             "regulation": rule.get("regulation"),
             "verified": rule.get("verified", False),
             "status": "needs_review",
+            "condition_checks": copy.deepcopy(event.get("condition_checks", {})),
+            "decision_mode": rule.get("decision_mode", "conditional"),
+            "review_reason": rule.get("review_reason"),
         })
 
     return candidates

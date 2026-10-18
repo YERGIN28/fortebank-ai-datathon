@@ -21,6 +21,13 @@ def observation(start, end, *, action='cash_transfer', description='Banknotes ar
 
 
 class PostprocessTests(unittest.TestCase):
+    def test_returned_document_is_not_reported_as_banknotes(self):
+        self.assertEqual(normalize_action(row('cash_returned_after_check','id_document'))['type'],
+                         'document_transfer')
+        self.assertEqual(normalize_action(row('cash_returned_after_check','unknown'))['type'],
+                         'object_transfer')
+        self.assertEqual(normalize_action(row('cash_returned_after_check','banknote'))['type'],
+                         'cash_returned_after_check')
     def test_id_card_not_cash(self):
         result = normalize_action(row(kind='id_document'))
         self.assertEqual(result['type'], 'document_transfer')

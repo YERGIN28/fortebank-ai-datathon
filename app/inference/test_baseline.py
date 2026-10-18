@@ -24,6 +24,17 @@ def evaluate(truth, pred, **kwargs):
 
 
 class BaselineTests(unittest.TestCase):
+    def test_system_yield_does_not_hide_failed_positives(self):
+        report = evaluate([reference('a', True), reference('b', True), reference('c', False)],
+                          [prediction('a', True, status='failed'), prediction('b', True),
+                           prediction('c', False)])
+        system = report['system_metrics_all_primary_records']
+        self.assertEqual(system['reference_positive'], 2)
+        self.assertEqual(system['positive_without_decision'], 1)
+        self.assertEqual(system['positive_detection_yield'], 0.5)
+        self.assertEqual(system['correct_decision_fraction'], 2/3)
+        self.assertEqual(report['verdict_metrics_on_complete_primary_only']['recall'], 1)
+
     def test_manifest_subset_keeps_only_planned_references(self):
         truth = {'videos': [reference('Х-101', True), reference('Х-102', False), reference('fake_other', True)]}
         manifest = {'videos': [{'video_id': 'X101'}, {'video_id': 'x-102.mov'}]}

@@ -143,6 +143,10 @@ def evaluate_baseline(truth_document, prediction_document, *, tolerance_sec=2.0,
         ambiguity_statuses[predictions[key]['status'] if key in predictions else 'missing'] += 1
     tp, fp, fn, tn = (counts[name] for name in ('tp', 'fp', 'fn', 'tn'))
     total = tp + fp + fn + tn
+    positive_total = sum(truth[key]['verdict'] == 'violation' for key in primary)
+    negative_total = len(primary) - positive_total
+    abstentions_positive = positive_total - tp - fn
+    abstentions_negative = negative_total - tn - fp
     statuses_order = ('complete', 'partial', 'timeout', 'failed', 'missing')
     return {
         'evaluation_scope': 'primary records only; ambiguous groups excluded',
@@ -158,6 +162,14 @@ def evaluate_baseline(truth_document, prediction_document, *, tolerance_sec=2.0,
             'known_duplicate_groups_excluded_from_primary': True,
             'record_status_counts': {status: ambiguity_statuses[status] for status in statuses_order},
             'metrics_computed': False},
+        'system_metrics_all_primary_records': {
+            'reference_positive': positive_total, 'reference_negative': negative_total,
+            'positive_without_decision': abstentions_positive,
+            'negative_without_decision': abstentions_negative,
+            'positive_detection_yield': tp / positive_total if positive_total else None,
+            'negative_false_alarm_fraction': fp / negative_total if negative_total else None,
+            'correct_decision_fraction': (tp + tn) / len(primary) if primary else None,
+        },
         'verdict_metrics_on_complete_primary_only': {
             'tp': tp, 'fp': fp, 'fn': fn, 'tn': tn,
             'precision': tp / (tp + fp) if tp + fp else None,
@@ -174,6 +186,7 @@ def evaluate_baseline(truth_document, prediction_document, *, tolerance_sec=2.0,
         'notes': [
             'Verdict comes from Rule Engine, never from nonempty AI observations.',
             'Incomplete predictions excluded; report primary coverage alongside metrics.',
+            'System yield includes every planned primary record; abstentions are not converted to negative verdicts.',
             'needs_review is abstention: excluded from binary and timing metrics; report decision_fraction.',
             'Ambiguous duplicate records are excluded; no independent scores for that pair.',
             'Localization hit uses nearest predicted point, without type or interval matching.',

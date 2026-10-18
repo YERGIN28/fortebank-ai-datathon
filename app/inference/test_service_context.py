@@ -45,7 +45,7 @@ class ServiceContextTests(unittest.TestCase):
     def test_context_method_uses_bounded_generation(self):
         model = QwenModel(InferenceConfig(Path('unused')))
         calls = []
-        def generate(frames, prompt, deadline, limit):
+        def generate(frames, prompt, deadline, limit, **kwargs):
             calls.append(limit)
             return json.dumps(self.payload())
         model._generate = generate
@@ -121,7 +121,7 @@ class ServiceContextTests(unittest.TestCase):
     def test_relevance_schema_rejects_numeric_and_string_booleans(self):
         model = QwenModel(InferenceConfig(Path('unused')))
         for value in (0, 1, 'false', []):
-            model._generate = lambda *args: json.dumps({'relevant': value})
+            model._generate = lambda *args, **kwargs: json.dumps({'relevant': value})
             with self.subTest(value=value), self.assertRaises(ValueError):
                 model.check_relevance([None], 10)
 

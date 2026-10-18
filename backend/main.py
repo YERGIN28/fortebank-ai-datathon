@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
+import hmac
 from pathlib import Path
 import queue
 import shutil
@@ -17,14 +18,15 @@ from backend import config
 from backend.contracts import JobDoneResponse
 from backend.services.analyzer_service import VideoAnalyzer
 from backend.worker_lock import WorkerLock
+from backend.keep_awake import keep_awake
 
 logger = logging.getLogger(__name__)
 jobs = {}
 # Separate metadata keeps internal timestamps out of the public JSON contract.
 job_lifecycle = {}
 job_queue = queue.Queue()
-UPLOAD_DIR = BASE_DIR / "uploads"
-WORKER_LOCK_PATH = UPLOAD_DIR / ".worker.lock"
+UPLOAD_DIR = config.UPLOAD_DIR
+WORKER_LOCK_PATH = config.WORKER_LOCK_PATH
 worker_thread = None
 accepting_jobs = False
 state_lock = threading.Lock()
@@ -49,7 +51,13 @@ def process_video(job_id: str, file_path: str, analyzer):
     metadata["started_at"] = utc_now()
     started = time.perf_counter()
     try:
+        deadline = metadata.get("deadline_monotonic", started + 300.0)
+        if started >= deadline:
+            raise TimeoutError("Job exceeded 300 seconds while waiting in queue")
+        analyzer.job_deadline = deadline
         result = analyzer.run_analysis(file_path)
+        if time.perf_counter() >= deadline:
+            raise TimeoutError("Job exceeded 300 seconds")
         response = JobDoneResponse(
             job_id=job_id, status="done",
             verdict=result["verdict"], violations=result["violations"],
@@ -110,7 +118,8 @@ async def lifespan(app):
             raise RuntimeError(f"Analysis worker startup failed: {startup['error']}") from startup["error"]
         with state_lock:
             accepting_jobs = True
-        yield
+        with keep_awake(config.ANALYSIS_MODE == "real"):
+            yield
     finally:
         with state_lock:
             accepting_jobs = False
@@ -126,7 +135,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 def check_api_key(x_api_key: str | None):
-    if not API_KEY or not x_api_key or x_api_key != API_KEY:
+    if not API_KEY or not x_api_key or not hmac.compare_digest(x_api_key.encode(), API_KEY.encode()):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
@@ -140,23 +149,36 @@ def safe_upload_name(filename: str | None) -> str:
 
 
 def enqueue_video(file: UploadFile):
+    request_started = time.perf_counter()
     safe_name = safe_upload_name(file.filename)
     with state_lock:
         if not accepting_jobs:
             raise HTTPException(status_code=503, detail="Analysis worker is not ready")
+        if sum(job.get('status') == 'processing' for job in jobs.values()) >= config.MAX_PENDING_JOBS:
+            raise HTTPException(status_code=429, detail='GPU queue is full; retry after the active job finishes')
     job_id = uuid.uuid4().hex
     file_path = Path(UPLOAD_DIR) / f"{job_id}_{safe_name}"
     try:
         with file_path.open("xb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            class LimitedWriter:
+                written = 0
+                def write(self, chunk):
+                    self.written += len(chunk)
+                    if self.written > config.MAX_UPLOAD_BYTES:
+                        raise HTTPException(status_code=413, detail="Video exceeds upload size limit")
+                    return buffer.write(chunk)
+            shutil.copyfileobj(file.file, LimitedWriter())
         if file_path.stat().st_size == 0:
             raise HTTPException(status_code=400, detail="Uploaded file is empty")
         with state_lock:
             if not accepting_jobs:
                 raise HTTPException(status_code=503, detail="Analysis worker is not ready")
+            if sum(job.get('status') == 'processing' for job in jobs.values()) >= config.MAX_PENDING_JOBS:
+                raise HTTPException(status_code=429, detail='GPU queue is full; retry after the active job finishes')
             job_lifecycle[job_id] = {
                 "created_at": utc_now(), "started_at": None,
                 "finished_at": None, "processing_time_sec": None,
+                "deadline_monotonic": request_started + 300.0,
             }
             jobs[job_id] = {"job_id": job_id, "status": "processing"}
             job_queue.put((job_id, str(file_path)))
@@ -180,9 +202,28 @@ def root():
     notice = (
         "Demo mode: results are simulated and do not confirm violations."
         if config.ANALYSIS_MODE == "fake" else
-        "AI mode: local Qwen inference and Rule Engine. Unresolved observations are reported as failed."
+        "Локальный AI-анализ. Результат требует проверки человеком; недостаток доказательств отображается отдельно."
     )
     return html.replace("__ANALYSIS_NOTICE__", notice)
+
+
+@app.get("/health", include_in_schema=False)
+def health():
+    from app.inference import INFERENCE_VERSION
+    from app.rules.indicator_catalog import RULES_VERSION
+    return {"ready": accepting_jobs, "mode": config.ANALYSIS_MODE,
+            "inference_version": INFERENCE_VERSION,
+            "model_name": Path(config.MODEL_PATH).name if config.MODEL_PATH and config.ANALYSIS_MODE == 'real' else None,
+            "quantization": config.MODEL_QUANTIZATION if config.ANALYSIS_MODE == 'real' else None,
+            "positive_verification": config.VERIFY_POSITIVE_CONDITIONS,
+            "rules_version": RULES_VERSION if config.ASSESSMENT_MODE == 'possible_signs' else 'rules-ai4.1',
+            "assessment_mode": config.ASSESSMENT_MODE}
+
+
+@app.get('/methodology', response_class=HTMLResponse, include_in_schema=False)
+def methodology():
+    from backend.methodology import render_methodology
+    return render_methodology()
 
 
 @app.post("/api/v1/analyze")

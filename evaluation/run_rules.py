@@ -10,11 +10,15 @@ from app.rules.classifier import classify_observations
 from app.rules.decision import decide_video
 
 
-def process_video(video):
+def process_video(video, *, assessment_mode='possible_signs'):
     video_id = video["video_id"]
     status = video.get("status", "failed")
 
-    decision = decide_video(video)
+    decision = decide_video(video, assessment_mode=assessment_mode)
+    # Evaluator uses complete, while the public job adapter uses done.
+    # Only an actual final verdict is normalized; failed stays failed.
+    if decision["status"] == "done":
+        decision = {**decision, "status": "complete"}
     observations = video.get("observations", [])
     candidates = []
     if status == "complete" and isinstance(observations, list):
@@ -22,7 +26,7 @@ def process_video(video):
         valid = [item for item in observations if isinstance(item, dict)
                  and isinstance(item.get("type"), str)
                  and isinstance(item.get("description", ""), str)]
-        candidates = check_events(classify_observations(valid))
+        candidates = check_events(classify_observations(valid), assessment_mode=assessment_mode)
     return {
         "video_id": video_id,
         **decision,
@@ -32,6 +36,7 @@ def process_video(video):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--assessment-mode', choices=('possible_signs', 'strict'), default='possible_signs')
 
     parser.add_argument(
         "input_json",
@@ -58,8 +63,9 @@ def main():
         raise ValueError("В JSON отсутствует список videos")
 
     result = {
+        'assessment_mode': args.assessment_mode,
         "videos": [
-            process_video(video)
+            process_video(video, assessment_mode=args.assessment_mode)
             for video in predictions["videos"]
         ]
     }

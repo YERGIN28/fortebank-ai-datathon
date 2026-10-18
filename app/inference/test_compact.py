@@ -69,8 +69,8 @@ class CompactTests(unittest.TestCase):
             self.assertFalse(has_complete_json(text))
 
     def test_compact_rejects_invalid_json_schema_and_excess(self):
-        for value, code in (('{"events":[', 'invalid_json'), ('{}', 'invalid_model_schema'),
-                            ('{"events":[{}, {}, {}]}', 'invalid_model_schema')):
+        for value, code in (('{"events":[', 'invalid_json'), ('{}', 'invalid_event_container'),
+                            ('{"events":[{}, {}, {}]}', 'missing_event_fields')):
             with self.subTest(value=value), self.assertRaises(ModelOutputError) as error:
                 parse_compact_response(value)
             self.assertEqual(error.exception.code, code)

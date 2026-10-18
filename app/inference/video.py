@@ -62,6 +62,16 @@ class VideoReader:
     def close(self):
         self.container.close()
 
+    def sample_evidence(self, timestamps, deadline, *, max_side=None):
+        """Revisit source evidence points rather than replacing them with a new grid."""
+        result = []
+        for timestamp in sorted(set(timestamps)):
+            frames = self.sample(timestamp, min(self.duration, timestamp + 0.5),
+                                 1, deadline, max_side=max_side)
+            if frames and (not result or frames[0].timestamp_sec > result[-1].timestamp_sec):
+                result.append(frames[0])
+        return result
+
 
 def iter_windows(duration: float, size: float, overlap: float):
     start = 0.0

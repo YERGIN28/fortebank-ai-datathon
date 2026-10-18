@@ -10,6 +10,7 @@ from .model import ModelOutputError, QwenModel, parse_service_context
 from .schemas import ACTOR_ROLES, OBSERVATION_TYPES, MAX_EVENTS_PER_WINDOW, InferenceConfig, InferenceResult, Observation
 from .video import SampledFrame, VideoReader, iter_windows
 from .postprocess import HANDHELD_ACTIONS, deduplicate, normalize_action
+from .conditions import CONDITION_SPECS, UNSUPPORTED_ABSENCE_ACTIONS, parse_condition_checks
 
 ERROR_CODES = {'Model response is not valid JSON': 'invalid_json',
                'Model response needs an observations list': 'invalid_model_schema',
@@ -19,6 +20,44 @@ ERROR_CODES = {'Model response is not valid JSON': 'invalid_json',
                'Frame index outside the sampled window': 'invalid_frame_index',
                'actors must be a list of role strings': 'invalid_actor_schema',
                'No decodable frames in window': 'no_frames'}
+
+
+def context_order(observations):
+    """Give distinct candidate categories a first check before repeated ones.
+
+    No dataset identifiers or labels participate. Results are sorted back by time.
+    """
+    priority = {name: rank for rank, name in enumerate((
+        'cash_left_unattended', 'workstation_left_with_screen_on', 'safe_left_open',
+        'key_left_in_safe_lock', 'cash_on_desk_with_next_customer',
+        'cashier_leaves_during_service', 'customer_leaves_during_cash_check',
+        'cash_on_desk_during_break', 'cash_left_after_counting'))}
+    occurrences = Counter()
+    queued = []
+    for observation in observations:
+        occurrence = occurrences[observation.type]
+        occurrences[observation.type] += 1
+        queued.append(((occurrence, priority.get(observation.type, len(priority)),
+                        observation.start_sec, observation.end_sec), observation))
+    return [observation for _, observation in sorted(queued, key=lambda item: item[0])]
+
+
+def context_targets(observation, duration, count=6):
+    """Retain up to four seed evidence points and add before/after context."""
+    limit = max(0.0, duration - 1e-6)
+    evidence = sorted(set(min(limit, max(0.0, t)) for t in observation.evidence_timestamps_sec))
+    if len(evidence) > count - 2:
+        evidence = [evidence[round(i * (len(evidence)-1)/(count-3))] for i in range(count-2)]
+    targets = set(evidence)
+    targets.update((max(0.0, observation.start_sec-3.0), min(limit, observation.end_sec+3.0)))
+    while len(targets) < count:
+        ordered = sorted(targets)
+        gaps = [(b-a,a,b) for a,b in zip(ordered,ordered[1:]) if b-a>0.2]
+        if not gaps:
+            break
+        _,a,b=max(gaps)
+        targets.add((a+b)/2)
+    return sorted(targets)
 
 
 def safe_window_error(error):
@@ -83,6 +122,7 @@ class InferenceEngine:
         self._object_diagnostics = Counter()
         self._stage_timings = Counter()
         self._service_checks = 0
+        self._positive_checks = 0
 
     def _timed(self, stage, operation, *args, **kwargs):
         started = time.perf_counter()
@@ -128,7 +168,7 @@ class InferenceEngine:
         for row in rows:
             row = dict(row)
             normalized = normalize_action(row)
-            cash_types = ('cash_handling', 'cash_transfer', 'cash_left_unattended')
+            cash_types = ('cash_handling', 'cash_transfer', 'cash_left_unattended', 'cash_returned_after_check')
             possible_cash = (normalized is not None and normalized.get('type') in cash_types)
             possible_cash |= (row.get('type') in cash_types and row.get('object_kind', 'unknown') == 'unknown')
             if possible_cash:
@@ -167,6 +207,7 @@ class InferenceEngine:
         self._object_diagnostics.clear()
         self._stage_timings.clear()
         self._service_checks = 0
+        self._positive_checks = 0
         reader = VideoReader(path, self.config.max_frame_side)
         loaded = False
         try:
@@ -233,8 +274,13 @@ class InferenceEngine:
             # Departure does not require visible banknotes. Keep evidence separate
             # from the category; the Rule Engine alone decides the final verdict.
             contextual = []
-            for observation in result.observations:
-                if result.status != 'complete' or observation.type != 'cashier_leaves_during_service':
+            for observation in context_order(result.observations):
+                if observation.type in UNSUPPORTED_ABSENCE_ACTIONS:
+                    self._object_diagnostics['procedure_gap_unresolved'] += 1
+                    contextual.append(observation)
+                    continue
+                if result.status != 'complete' or observation.type not in (
+                        'cashier_leaves_during_service', *CONDITION_SPECS):
                     contextual.append(observation)
                     continue
                 if (self._service_checks >= self.config.max_service_checks
@@ -247,29 +293,86 @@ class InferenceEngine:
                 start = max(0, observation.start_sec - 6)
                 end = min(reader.duration, observation.end_sec + 6)
                 try:
-                    frames = self._timed('decode', reader.sample, start, end, 6, check_deadline)
+                    frames = self._timed('decode', reader.sample_evidence,
+                                         context_targets(observation, reader.duration), check_deadline,
+                                         max_side=self.config.verification_frame_side)
                     if len(frames) < 2:
                         raise ValueError('Insufficient context frames')
-                    checks = self._timed('service_context', self.model.check_service_context, frames, check_deadline)
+                    if observation.type == 'cashier_leaves_during_service':
+                        checks = self._timed('service_context', self.model.check_service_context, frames, check_deadline)
+                        checks = parse_service_context(json.dumps(checks), len(frames))
+                    else:
+                        checks = self._timed('service_context', self.model.check_conditions,
+                                             frames, observation.type, check_deadline)
+                        checks = parse_condition_checks(json.dumps(checks), observation.type, len(frames))
                     if time.perf_counter() >= check_deadline:
                         raise TimeoutError('Context check exhausted budget')
-                    checks = parse_service_context(json.dumps(checks), len(frames))
+                    # Explicit visual counterevidence rejects a candidate. Unclear,
+                    # missing or timed-out evidence never silently becomes negative.
+                    if any(check['state'] == 'refuted' for check in checks.values()):
+                        self._object_diagnostics['service_context_refuted'] += 1
+                        continue
+                    if self.config.verify_positive_conditions and all(
+                            check['state'] == 'observed' for check in checks.values()):
+                        # A second answer is not an independent model. It is a consistency
+                        # check on a denser sample, blind to the first answer.
+                        supported = False
+                        can_verify = (self._positive_checks < self.config.max_positive_checks
+                                      and deadline - time.perf_counter() > self.config.positive_check_seconds)
+                        if can_verify:
+                            self._positive_checks += 1
+                            verify_deadline = min(deadline, time.perf_counter() + self.config.positive_check_seconds)
+                            try:
+                                # Retain the exact before/after evidence. A narrower new
+                                # interval can omit the transition that created the candidate.
+                                detail = frames
+                                if len(detail) < 2:
+                                    raise ValueError('Insufficient verification frames')
+                                secondary = self._timed('service_context', self.model.verify_positive_conditions,
+                                    detail, observation.type, verify_deadline)
+                                if observation.type == 'cashier_leaves_during_service':
+                                    secondary = parse_service_context(json.dumps(secondary), len(detail))
+                                else:
+                                    secondary = parse_condition_checks(json.dumps(secondary), observation.type, len(detail))
+                                if time.perf_counter() >= verify_deadline:
+                                    raise TimeoutError('Positive verification exhausted budget')
+                                if all(check['state'] == 'observed' for check in secondary.values()):
+                                    checks, frames = secondary, detail
+                                    supported = True
+                                    self._object_diagnostics['positive_verification_supported'] += 1
+                                else:
+                                    self._object_diagnostics['positive_verification_disagreed'] += 1
+                            except (ValueError, AttributeError, TimeoutError):
+                                self._object_diagnostics['positive_verification_unavailable'] += 1
+                        else:
+                            self._object_diagnostics['positive_verification_skipped'] += 1
+                        if not supported:
+                            # Disagreement, unsupported methods and missing budget are
+                            # abstentions. They never certify a negative video verdict.
+                            checks = {name: {**check, 'state': 'unclear'}
+                                      for name, check in checks.items()}
                     converted = {name: {'state': check['state'], 'evidence_timestamps_sec':
                                  [frames[index].timestamp_sec for index in check['frames']]}
                                  for name, check in checks.items()}
                     observation = replace(observation, start_sec=start, end_sec=end,
-                                          condition_checks=converted)
+                                          condition_checks=converted,
+                                          timing_resolution_sec=max(
+                                              observation.timing_resolution_sec,
+                                              max((b.timestamp_sec - a.timestamp_sec
+                                                   for a, b in zip(frames, frames[1:])), default=0)))
                 except TimeoutError:
                     self._object_diagnostics['service_context_timeout'] += 1
                 except (ValueError, AttributeError):
                     self._object_diagnostics['service_context_invalid_output'] += 1
                 contextual.append(observation)
-            result.observations = contextual
+            result.observations = sorted(contextual, key=lambda item: (item.start_sec, item.end_sec))
             if time.perf_counter() >= deadline:
                 result.status = 'timeout'
             if result.status == 'timeout':
                 result.warnings.append('Time budget exhausted; do not treat as a completed analysis')
             result.warnings.extend(f'{code}: {count}' for code, count in self._object_diagnostics.items())
+            result.warnings.extend(f'{code}: {count}' for code, count in
+                                   getattr(self.model, 'condition_diagnostics', {}).items())
         finally:
             reader.close()
             result.elapsed_sec = time.perf_counter() - started

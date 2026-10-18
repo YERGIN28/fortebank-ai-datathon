@@ -380,7 +380,7 @@ def test_real_worker_loads_engine_once(monkeypatch, tmp_path, video):
 
 
 def test_rule_exception_propagates(video, monkeypatch):
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise RuntimeError("rules failed")
     monkeypatch.setattr(rules_adapter, "build_job_result", fail)
     with pytest.raises(RuntimeError, match="rules failed"):
@@ -402,7 +402,7 @@ def test_confirmed_rule_reaches_http_with_real_jpeg(client, video, monkeypatch):
     event = {"type": "cashier_leaves_during_service", "start_sec": 0, "end_sec": 1,
              "condition_checks": {
                  "cashier_left_workplace": {"state": "observed", "evidence_timestamps_sec": [0.2]},
-                 "customer_service_ongoing": {"state": "observed", "evidence_timestamps_sec": [0.5]}}}
+                 "customer_service_ongoing": {"state": "observed", "evidence_timestamps_sec": [0.2, 0.5]}}}
     analyzer = real_analyzer(observations=[event])
     original = service.VideoAnalyzer.run_analysis
     monkeypatch.setattr(service.VideoAnalyzer, "run_analysis", lambda self, path: original(analyzer, path))
@@ -415,7 +415,7 @@ def test_confirmed_rule_reaches_http_with_real_jpeg(client, video, monkeypatch):
         assert cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR) is not None
 
 
-def test_context_pass_uses_model_evidence(video):
+def test_unattended_cash_is_not_renamed_or_rechecked_by_backend(video):
     analyzer = real_analyzer(observations=[{"type": "cash_left_unattended", "start_sec": 0, "end_sec": 1}])
     calls = []
 
@@ -429,10 +429,9 @@ def test_context_pass_uses_model_evidence(video):
 
     # Only the public method is exposed: reaching _generate would fail this test.
     analyzer.engine.model = SimpleNamespace(check_service_context=check_service_context)
-    result = analyzer.run_analysis(str(video))
-    assert len(calls) == 1
-    assert result["verdict"] == "violation"
-    assert len(result["violations"][0]["evidence_frames"]) == 2
+    with pytest.raises(RuntimeError, match="unresolved_observations: cash_left_unattended"):
+        analyzer.run_analysis(str(video))
+    assert calls == []
 
 
 @pytest.mark.parametrize("condition,status,verdict", [
@@ -461,7 +460,7 @@ def test_current_ai_departure_flows_through_rules_and_http(
             return {
                 "cashier_left_workplace": {"state": "observed", "frames": [0, len(frames) - 1]},
                 "customer_service_ongoing": {
-                    "state": condition, "frames": [] if condition == "unclear" else [1],
+                    "state": condition, "frames": [] if condition == "unclear" else [len(frames) - 1],
                 },
             }
 

@@ -70,12 +70,15 @@ def summarize(document, *, planned_videos=None, wall_elapsed_sec=None) -> dict:
         raise ValueError('Invalid expected video count')
     statuses, samples, complete_times = Counter(), {}, []
     diagnostic_counts = Counter()
+    schema_diagnostics = {'invalid_presence_schema', 'inconsistent_presence', 'invalid_action_code',
+                          'invalid_object_code', 'missing_event_fields', 'invalid_event_container'}
     versions = Counter()
     safe_diagnostics = {'invalid_json', 'json_token_limit', 'invalid_model_schema', 'too_many_events',
                         'invalid_frame_index', 'invalid_actor_schema', 'no_frames', 'invalid_object_json',
                         'object_check_timeout', 'object_check_invalid_output', 'object_check_skipped',
                         'event_count_above_target'}
-    safe_diagnostics.update(('service_context_skipped', 'service_context_timeout', 'service_context_invalid_output'))
+    safe_diagnostics.update(schema_diagnostics)
+    safe_diagnostics.update(('service_context_skipped', 'service_context_timeout', 'service_context_invalid_output', 'service_context_refuted'))
     safe_diagnostics.update(('relevance_rejected', 'relevance_fallback'))
     for row in records:
         if not isinstance(row, dict) or row.get('status') not in ('complete', 'partial', 'timeout', 'failed'):

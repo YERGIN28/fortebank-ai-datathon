@@ -22,7 +22,7 @@ def test_known_rule_types_survive_pipeline():
             "video_id": "synthetic_known_type",
             "status": "complete",
             "observations": [observation],
-        })
+        }, assessment_mode='strict')
         assert len(direct) == 1
         assert result["candidates"] == direct
         assert result["status"] == "failed"
@@ -31,7 +31,7 @@ def test_known_rule_types_survive_pipeline():
 
 
 def test_neutral_inference_actions_are_not_candidates():
-    for event_type in ("document_handover", "document_check", "object_transfer"):
+    for event_type in ("document_handling", "document_transfer", "object_transfer"):
         observation = {
             "type": event_type,
             "start_sec": 10,

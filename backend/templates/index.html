@@ -1,257 +1,29 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ForteBank Video Analysis</title>
-
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 900px;
-            margin: 40px auto;
-            padding: 0 20px;
-        }
-
-        .card {
-            border: 1px solid #ccc;
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 20px;
-        }
-
-        button {
-            padding: 10px 18px;
-            cursor: pointer;
-        }
-
-        img {
-            max-width: 100%;
-            margin-top: 15px;
-            border-radius: 8px;
-        }
-
-        #status {
-            margin-top: 20px;
-            font-weight: bold;
-        }
-
-        .hidden {
-            display: none;
-        }
-    </style>
-</head>
-
-<body>
-
-<h1>ForteBank Video Analysis</h1>
-<p id="analysis-mode">__ANALYSIS_NOTICE__</p>
-
-<p>Upload a .mov video for analysis</p>
-
-<input type="file" id="videoFile" accept=".mov">
-
-<button onclick="uploadVideo()">
-    Analyze
-</button>
-
-<div id="status"></div>
-
-<div id="result" class="card hidden">
-
-    <h2>Analysis Result</h2>
-
-    <p>
-        <strong>Verdict:</strong>
-        <span id="verdict"></span>
-    </p>
-
-    <div id="violations"></div>
-
-</div>
-
-
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DataSAURs · Кассовый контроль</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1017;--panel:#141923;--line:#29303c;--text:#edf0f5;--muted:#a3adbd;--accent:#dd427d;--amber:#ffb36b;font:15px/1.5 'Segoe UI',Arial,sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}button,input{font:inherit}button,a,input{outline-offset:5px}a{color:#e996b5;text-decoration:none}a:hover{text-decoration:underline}button{cursor:pointer}header{height:88px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 40px;gap:24px}.wordmark{font-weight:750;letter-spacing:-1px;font-size:25px}.wordmark span{color:var(--accent)}.brandline{display:flex;align-items:center;gap:20px}.brandcontext{border-left:1px solid var(--line);padding-left:20px;color:var(--muted);font-size:12px;line-height:1.5}.forte{background:#fff;border-radius:8px;padding:9px 13px;display:flex;align-items:center}.forte svg{width:82px;height:auto}.health{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}.dot{width:7px;height:7px;border-radius:50%;background:#a3adbd}.dot.ready{background:#85c9b0}main{max-width:1560px;margin:auto;padding:40px}.intro{display:flex;justify-content:space-between;align-items:end;margin-bottom:30px;gap:24px}.eyebrow{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#da8faa;margin-bottom:12px}h1{font-size:clamp(28px,3vw,42px);letter-spacing:-1.5px;line-height:1.15;margin:0 0 13px;font-weight:650}p{margin:0 0 12px}.muted{color:var(--muted)}.intro p{max-width:660px;font-size:15px}.privacy{font-size:12px;color:var(--muted);text-align:right;min-width:180px}.workspace{display:grid;grid-template-columns:220px minmax(300px,1fr) 360px;gap:20px;align-items:start}.panel{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}.panelhead{padding:19px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.panelhead h2{font-size:15px;margin:0;font-weight:600}.number{font-size:11px;font-variant-numeric:tabular-nums;color:var(--muted)}.left{padding:24px 20px}.step{padding:0 0 27px 22px;border-left:1px solid #384052;position:relative}.step:before{content:'';width:7px;height:7px;border-radius:50%;background:#67758a;position:absolute;left:-4px;top:6px}.step.active:before{background:var(--accent);box-shadow:0 0 0 4px #dd427d18}.step:last-child{padding-bottom:0;border-left-color:transparent}.step strong{font-size:13px;font-weight:600}.step small{display:block;color:var(--muted);font-size:11px;margin-top:5px}.specs{margin-top:30px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}.specs div{display:flex;justify-content:space-between;margin-top:10px}.specs b{color:var(--text);font-weight:500}.upload{margin:24px;border:1px dashed #485269;border-radius:10px;padding:36px 24px;text-align:center;background:#111620;transition:border-color .2s}.upload.drag{border-color:var(--accent)}.upload-symbol{font-size:32px;color:#aeb8ca;margin-bottom:13px;line-height:1}.upload strong{display:block;font-size:19px;font-weight:500;margin-bottom:8px}.upload p{font-size:12px;color:var(--muted)}input[type=file]{display:block;width:100%;margin-top:22px;font-size:12px;color:var(--muted)}input::file-selector-button{background:#242d3c;color:var(--text);border:1px solid #3b475b;border-radius:6px;padding:9px 13px;margin-right:12px;cursor:pointer}.actions{padding:0 24px 24px;display:flex;align-items:center;gap:16px}.primary{background:#ae2056;color:#fff;border:1px solid #d33c75;border-radius:7px;padding:12px 22px;font-weight:600;flex:1}.primary:hover{background:#c12964}.primary:disabled{opacity:.5;cursor:wait}.secondary{background:transparent;border:1px solid #485269;color:var(--text);border-radius:6px;padding:8px 12px;font-size:12px}.status{margin:0 24px 24px;padding:14px;border-left:3px solid #788aa7;background:#1d2635;border-radius:4px;font-size:13px}.status.error{border-color:var(--amber);background:#30251d;color:#ffd0a3}.status.success{border-color:#85c9b0;background:#192c29;color:#b2decf}#analysis-mode{padding:0 24px 20px;font-size:11px;color:var(--muted)}.empty{padding:45px 28px;color:var(--muted);font-size:13px}.empty strong{display:block;color:#d6dce6;font-size:17px;font-weight:500;margin-bottom:12px}.empty-marker{font-size:28px;margin-bottom:20px;color:#79849a}.resultbody{padding:22px}#verdict{font-size:20px;font-weight:600;line-height:1.35;margin:0 0 20px}.event{border-top:1px solid var(--line);padding:20px 0}.event h3{font-size:15px;margin:0 0 12px;font-weight:600}.event p{font-size:12px;color:var(--muted)}.frames{display:grid;gap:10px}figure{margin:0}figure img{width:100%;border-radius:7px;cursor:zoom-in}figcaption{font-size:11px;color:var(--muted)}.timebutton{color:#ffc191;border:1px solid #805b3d;background:#33261e;border-radius:4px;padding:4px 8px;font-variant-numeric:tabular-nums;margin-bottom:12px}.preview{padding:0 24px 24px}.preview video{width:100%;max-height:420px;background:#080b10;border-radius:8px}.preview p{font-size:11px;color:var(--muted);margin:8px 0}.hidden{display:none!important}footer{display:flex;justify-content:space-between;gap:24px;border-top:1px solid var(--line);padding:24px 0;margin-top:30px;font-size:11px;color:var(--muted)}footer p{max-width:730px}.modal{position:fixed;inset:0;z-index:20;background:#000d;display:flex;align-items:center;justify-content:center;padding:48px}.modal img{max-width:100%;max-height:85vh}.modal button{position:absolute;top:18px;right:22px}.legend{display:flex;gap:20px;font-size:11px;color:var(--muted);margin-top:20px}.legend span:before{content:'•';color:var(--amber);margin-right:7px}.legend span+span:before{color:#85c9b0}@media(max-width:1200px){.workspace{grid-template-columns:minmax(300px,1fr) 330px}.left{display:none}}@media(max-width:760px){header{padding:0 20px;height:76px}.brandcontext,.privacy{display:none}main{padding:26px 16px}.workspace{grid-template-columns:1fr}.intro{display:block}footer{flex-direction:column}.health{font-size:10px}.wordmark{font-size:20px}.forte svg{width:65px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+.upload.selected{padding:15px 18px;margin:18px 24px}.upload.selected .upload-symbol,.upload.selected strong,.upload.selected p{display:none}.upload.selected input{margin-top:0}.preview video{max-height:300px}main{padding-top:28px}.intro{margin-bottom:22px}header{height:76px}</style></head><body>
+<header><div class="brandline"><div class="wordmark">Data<span>SAURs</span></div><div class="brandcontext">AI DATATHON 2026<br>Кассовые операции</div></div><div class="brandline"><div class="health"><span id="healthDot" class="dot"></span><span id="healthText">Проверка сервиса</span></div><div class="forte" aria-label="Forte — организатор кейса"><svg width="101" height="30" viewBox="0 0 101 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24.2402 28.4943C22.4635 27.4919 21.067 26.0813 20.0506 24.2624C19.0341 22.4436 18.5273 20.3347 18.5273 17.9358C18.5273 15.537 19.0482 13.4647 20.0928 11.6318C21.1374 9.79881 22.5621 8.38821 24.3669 7.39994C26.1716 6.41167 28.1904 5.91895 30.4175 5.91895C32.6447 5.91895 34.6634 6.41167 36.4682 7.39994C38.273 8.38821 39.6977 9.79881 40.7423 11.6318C41.784 13.4647 42.3077 15.5679 42.3077 17.9358C42.3077 20.3037 41.7728 22.407 40.7 24.2399C39.6273 26.0729 38.1688 27.4919 36.3218 28.4914C34.4748 29.4938 32.4363 29.9921 30.2064 29.9921C27.9764 29.9921 26.0168 29.491 24.2402 28.4914V28.4943ZM33.6977 24.9185C34.7845 24.3272 35.6658 23.4375 36.3415 22.2521C37.0173 21.0668 37.3579 19.628 37.3579 17.9358C37.3579 16.2437 37.0341 14.8105 36.3838 13.6421C35.7334 12.4708 34.8746 11.5895 33.8019 10.9983C32.7291 10.407 31.5719 10.1085 30.3331 10.1085C29.0942 10.1085 27.9426 10.4042 26.884 10.9983C25.8253 11.5895 24.9863 12.4736 24.3669 13.6421C23.7474 14.8134 23.4349 16.2437 23.4349 17.9358C23.4349 20.4473 24.0768 22.3873 25.3608 23.7528C26.6447 25.1212 28.258 25.8054 30.2064 25.8054C31.448 25.8054 32.6109 25.5097 33.6977 24.9157V24.9185Z" fill="#A31551"></path><path d="M68.9682 10.2325V23.1391C68.9682 24.0147 69.1737 24.6426 69.582 25.0227C69.9902 25.4028 70.6885 25.5943 71.6768 25.5943H74.6388V29.6149H70.8293C68.6557 29.6149 66.9917 29.1081 65.8373 28.0917C64.6801 27.0753 64.1029 25.4253 64.1029 23.1419V10.2353H61.3521V6.29912H64.1029V0.499023H68.9682V6.2963H74.6388V10.2325H68.9682Z" fill="#A31551"></path><path d="M100.279 19.7547H82.4647C82.6055 21.6158 83.2953 23.1109 84.5369 24.2399C85.7786 25.369 87.3018 25.9321 89.1066 25.9321C91.7026 25.9321 93.5355 24.8453 94.6083 22.6745H99.8143C99.1076 24.8171 97.8321 26.574 95.9851 27.9424C94.1381 29.3108 91.8462 29.995 89.1094 29.995C86.8795 29.995 84.8861 29.4938 83.1207 28.4943C81.3582 27.4919 79.9757 26.0813 78.9734 24.2624C77.971 22.4436 77.4727 20.3347 77.4727 17.9358C77.4727 15.537 77.9597 13.4281 78.9311 11.6092C79.9053 9.79037 81.2737 8.38539 83.0362 7.39994C84.7988 6.41167 86.8232 5.91895 89.1094 5.91895C91.3957 5.91895 93.2709 6.39759 94.9912 7.35771C96.7115 8.31782 98.0517 9.66367 99.0118 11.3981C99.9691 13.1325 100.451 15.1287 100.451 17.3868C100.451 18.2624 100.394 19.0508 100.282 19.7575L100.279 19.7547ZM95.4135 15.8608C95.3854 14.0841 94.7491 12.6594 93.5102 11.5867C92.2685 10.514 90.7312 9.97901 88.8983 9.97901C87.2343 9.97901 85.8096 10.5083 84.6242 11.567C83.4389 12.6257 82.735 14.056 82.5097 15.8608H95.4163H95.4135Z" fill="#A31551"></path><path d="M14.8003 11.7568V17.0473C9.55487 17.0473 5.28082 21.3185 5.28082 26.5668V29.6104H-0.00683594V26.5668C-0.00683594 25.0379 0.226857 23.5654 0.657641 22.1773C1.51076 19.4377 3.13535 17.036 5.28082 15.2341C7.43756 13.418 10.118 12.2073 13.0575 11.861C13.629 11.7934 14.209 11.7597 14.8003 11.7597V11.7568Z" fill="#A31551"></path><path d="M18.5253 -0.00585938V5.28461H14.8003C10.5403 5.28461 6.92231 8.09738 5.71442 11.966C3.29865 13.3512 1.31086 15.3954 -0.00683594 17.8562V14.8013C-0.00683594 6.63609 6.63512 -0.00585938 14.8003 -0.00585938H18.5253Z" fill="#A31551"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M47.082 6.30859H51.9051V8.82729C53.4897 7.5134 55.4517 6.63716 57.5998 6.38461C58.0221 6.33393 58.4529 6.30859 58.8921 6.30859V10.2279C55.3385 10.2279 52.3869 12.8712 51.9051 16.2966V29.6244H47.082V6.30859Z" fill="#A31551"></path></svg></div></div></header>
+<main><div class="intro"><div><div class="eyebrow">Видеоаналитика · Рабочее пространство</div><h1>Кассовый контроль</h1><p class="muted">Найдите момент, который требует внимания.<br>Локальный анализ видео, таймкоды и кадры для проверки.</p></div><div class="privacy">Обработка на локальной GPU<br>Без облачных AI API</div></div>
+<div class="workspace"><aside class="panel left" aria-label="Этапы проверки"><div class="step active"><strong>01 · Видеозапись</strong><small>Загрузите один файл</small></div><div class="step"><strong>02 · Анализ</strong><small>Действия и контекст</small></div><div class="step"><strong>03 · Проверка</strong><small>Условия визуальных правил</small></div><div class="step"><strong>04 · Результат</strong><small>События и доказательства</small></div><div class="specs"><div><span>Формат</span><b>.mov</b></div><div><span>Размер</span><b>до 64 МБ</b></div><div><span>Лимит анализа</span><b>5 минут</b></div></div></aside>
+<section class="panel"><div class="panelhead"><h2>Исходное видео</h2><span class="number">01</span></div><div class="upload" id="dropzone"><div class="upload-symbol" aria-hidden="true">↥</div><label for="videoFile"><strong>Добавьте видеозапись</strong></label><p>Перетащите .mov сюда или выберите файл</p><input id="videoFile" aria-label="Выбрать видео MOV" type="file" accept=".mov,video/quicktime"></div><div class="preview hidden" id="preview"><video id="sourceVideo" controls muted playsinline></video><p>Предпросмотр остаётся в браузере. Некоторые кодеки MOV могут не воспроизводиться; анализ доступен независимо от предпросмотра.</p></div><div class="actions"><button class="primary" id="analyzeButton" type="button">Проверить видео <span aria-hidden="true">↗</span></button></div><div id="status" class="status hidden" role="status" aria-live="polite"></div><p id="analysis-mode">__ANALYSIS_NOTICE__</p></section>
+<section class="panel"><div class="panelhead"><h2>Результат проверки</h2><span class="number">02</span></div><div id="emptyResult" class="empty"><div class="empty-marker" aria-hidden="true">⌁</div><strong>Здесь появятся события</strong><p>Для каждого найденного признака — время, объяснение и до трёх кадров.</p><p>Неопределённый результат будет показан отдельно: он не означает отсутствие нарушения.</p></div><div id="result" class="resultbody hidden"><h2 id="verdict"></h2><button id="downloadResult" class="secondary">Сохранить JSON локально</button><div id="violations"></div></div></section></div>
+<div class="legend"><span>Признак требует проверки</span><span>Анализ завершён</span></div><footer><p>Прототип команды DataSAURs для кейса ForteBank. Результат помогает специалисту проверить ситуацию и не является юридическим заключением. Распознавание личности и анализ звука не используются.</p><a href="/methodology" target="_blank" rel="noopener">Методика, источники и ограничения ↗</a></footer></main>
+<div id="frameModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Кадр события"><button class="secondary" id="closeModal">Закрыть ×</button><img id="largeFrame" alt="Увеличенный кадр события"></div>
 <script>
-
-
-
-
-async function uploadVideo() {
-
-    const fileInput = document.getElementById("videoFile");
-    const status = document.getElementById("status");
-    const result = document.getElementById("result");
-
-    if (!fileInput.files.length) {
-        status.innerText = "Please select a .mov file";
-        return;
-    }
-
-    const file = fileInput.files[0];
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    status.innerText = "Uploading...";
-    result.classList.add("hidden");
-
-    try {
-
-        const response = await fetch("/ui/analyze", {
-    method: "POST",
-    body: formData
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            status.innerText = "Error: " + error.detail;
-            return;
-        }
-
-        const data = await response.json();
-
-        status.innerText = "Processing...";
-
-        checkJob(data.job_id);
-
-    } catch (error) {
-
-        status.innerText = "Request failed";
-
-    }
-
-}
-
-
-async function checkJob(jobId) {
-
-    const status = document.getElementById("status");
-
-    try {
-
-        const response = await fetch(
-            `/ui/jobs/${jobId}`
-        );
-
-        const data = await response.json();
-
-        if (data.status === "processing") {
-
-            status.innerText = "Processing...";
-
-            setTimeout(
-                () => checkJob(jobId),
-                1000
-            );
-
-            return;
-        }
-
-        if (data.status === "failed") {
-
-            status.innerText =
-                "Analysis failed: " + data.error;
-
-            return;
-        }
-
-        if (data.status === "done") {
-
-            status.innerText = "Analysis complete";
-
-            showResult(data);
-
-        }
-
-    } catch (error) {
-
-        status.innerText = "Failed to check job status";
-
-    }
-
-}
-
-
-function showResult(data) {
-
-    const result = document.getElementById("result");
-    const verdict = document.getElementById("verdict");
-    const violationsContainer =
-        document.getElementById("violations");
-
-    result.classList.remove("hidden");
-
-    verdict.innerText = data.verdict;
-
-    violationsContainer.innerHTML = "";
-
-    if (!data.violations || data.violations.length === 0) {
-
-        violationsContainer.innerHTML =
-            "<p>No violations detected</p>";
-
-        return;
-    }
-
-    data.violations.forEach((violation, index) => {
-
-        const violationDiv =
-            document.createElement("div");
-
-        violationDiv.className = "card";
-
-        let html = `
-            <h3>Violation ${index + 1}</h3>
-
-            <p>
-                <strong>Type:</strong>
-                ${violation.type}
-            </p>
-
-            <p>
-                <strong>Time:</strong>
-                ${violation.timecode_sec} sec
-            </p>
-
-            <p>
-                <strong>Description:</strong>
-                ${violation.description}
-            </p>
-        `;
-
-        if (
-            violation.evidence_frames &&
-            violation.evidence_frames.length > 0
-        ) {
-
-            violation.evidence_frames.forEach(frame => {
-
-                html += `
-                    <p>
-                        Evidence frame:
-                        ${frame.timestamp_sec} sec
-                    </p>
-
-                    <img
-                        src="data:image/jpeg;base64,${frame.image_base64}"
-                    >
-                `;
-
-            });
-
-        }
-
-        violationDiv.innerHTML = html;
-
-        violationsContainer.appendChild(
-            violationDiv
-        );
-
-    });
-
-}
-
-</script>
-
-</body>
-</html>
+const input=document.getElementById('videoFile'),button=document.getElementById('analyzeButton'),statusBox=document.getElementById('status'),resultBox=document.getElementById('result');
+let started=0,pollTimer=null,activeJob=null,lastResult=null,previewUrl=null;
+function stage(index){document.querySelectorAll('.step').forEach((e,i)=>e.classList.toggle('active',i===index));}
+function status(text,kind=''){statusBox.textContent=text;statusBox.className='status '+kind;}
+function textElement(tag,text){const e=document.createElement(tag);e.textContent=text;return e;}
+function readableError(error){if(String(error).startsWith('unresolved_observations'))return 'Анализ выполнен, но данных недостаточно для подтверждения условий правила. Итоговый вердикт не сформирован.';if(String(error).includes('300')||String(error).includes('timeout'))return 'Обработка не завершилась в отведённое время.';return 'Не удалось завершить анализ. Проверьте формат видео и состояние сервиса.';}
+function showResult(data){lastResult=data;document.getElementById('emptyResult').classList.add('hidden');resultBox.classList.remove('hidden');document.getElementById('verdict').textContent=data.verdict==='violation'?'Обнаружены признаки возможных нарушений':'Нарушение не обнаружено';const box=document.getElementById('violations');box.replaceChildren();if(!data.violations.length){box.append(textElement('p','В пределах поддерживаемых правил подтверждённых событий не найдено.'));return;}for(const [index,event] of data.violations.entries()){const article=document.createElement('article');article.className='event';article.append(textElement('h3',`${index+1}. ${event.type}`),textElement('p',`Таймкод: ${Number(event.timecode_sec).toFixed(2)} с`),textElement('p',event.description));const frames=document.createElement('div');frames.className='frames';for(const frame of (event.evidence_frames||[]).slice(0,3)){const figure=document.createElement('figure'),img=document.createElement('img');img.alt='Кадр-доказательство события';img.tabIndex=0;const expand=()=>{document.getElementById('largeFrame').src=img.src;document.getElementById('frameModal').classList.remove('hidden');document.getElementById('closeModal').focus();};img.onclick=expand;img.onkeydown=e=>{if(e.key==='Enter')expand();};img.src='data:image/jpeg;base64,'+frame.image_base64;figure.append(img,textElement('figcaption',`Кадр: ${Number(frame.timestamp_sec).toFixed(2)} с`));frames.append(figure);}const seek=textElement('button','Перейти к '+Number(event.timecode_sec).toFixed(2)+' с');seek.className='timebutton';seek.onclick=()=>{const v=document.getElementById('sourceVideo');v.currentTime=Number(event.timecode_sec);v.focus();};article.prepend(seek);article.append(frames);box.append(article);}}
+async function checkJob(jobId){try{const response=await fetch('/ui/jobs/'+encodeURIComponent(jobId),{cache:'no-store'});if(!response.ok)throw Error('status_request');const data=await response.json();if(activeJob!==jobId)return;if(data.status==='processing'){status(`Обрабатываем видео · прошло ${Math.floor((Date.now()-started)/1000)} с`);pollTimer=setTimeout(()=>checkJob(jobId),1000);return;}button.disabled=false;input.disabled=false;if(data.status==='failed'){status(readableError(data.error),'error');return;}if(data.status!=='done'||!Array.isArray(data.violations))throw Error('invalid_response');stage(3);status('Анализ завершён','success');showResult(data);}catch(e){button.disabled=false;input.disabled=false;status('Связь с сервисом прервалась. Проверьте подключение.','error');}}
+async function uploadVideo(){const file=input.files[0];if(!file){status('Выберите видео .mov','error');return;}if(!file.name.toLowerCase().endsWith('.mov')){status('Поддерживаются файлы .mov','error');return;}if(file.size>64*1024*1024){status('Файл превышает 64 МБ','error');return;}clearTimeout(pollTimer);activeJob=null;button.disabled=true;input.disabled=true;stage(1);resultBox.classList.add('hidden');document.getElementById('emptyResult').classList.remove('hidden');status('Загружаем видео…');try{const form=new FormData();form.append('file',file);const response=await fetch('/ui/analyze',{method:'POST',body:form});if(!response.ok){button.disabled=false;input.disabled=false;status(response.status===413?'Файл превышает допустимый размер.':response.status===429?'Очередь GPU занята. Дождитесь завершения текущей проверки.':'Не удалось загрузить видео. Проверьте файл и готовность сервиса.','error');return;}const data=await response.json();activeJob=data.job_id;started=Date.now();checkJob(data.job_id);}catch(e){button.disabled=false;input.disabled=false;status('Не удалось подключиться к сервису.','error');}}
+button.addEventListener('click',uploadVideo);
+
+input.addEventListener('change',()=>{if(previewUrl)URL.revokeObjectURL(previewUrl);const f=input.files[0];if(!f)return;lastResult=null;stage(0);resultBox.classList.add('hidden');document.getElementById('emptyResult').classList.remove('hidden');statusBox.classList.add('hidden');document.getElementById('dropzone').classList.add('selected');previewUrl=URL.createObjectURL(f);document.getElementById('sourceVideo').src=previewUrl;document.getElementById('preview').classList.remove('hidden');});
+const drop=document.getElementById('dropzone');drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag');});drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');if(button.disabled)return;if(e.dataTransfer.files.length!==1){status('Выберите один файл','error');return;}input.files=e.dataTransfer.files;input.dispatchEvent(new Event('change'));});
+document.getElementById('downloadResult').onclick=()=>{if(!lastResult)return;const u=URL.createObjectURL(new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download='datas aurs-result.json'.replace(' ','');a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);};
+function closeFrame(){document.getElementById('frameModal').classList.add('hidden');}document.getElementById('closeModal').onclick=closeFrame;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeFrame();});
+fetch('/health',{cache:'no-store'}).then(r=>r.json()).then(h=>{document.getElementById('healthText').textContent=h.ready?'Сервис готов':'Модель загружается';document.getElementById('healthDot').classList.toggle('ready',!!h.ready);}).catch(()=>{document.getElementById('healthText').textContent='Сервис недоступен';});
+</script></body></html>
