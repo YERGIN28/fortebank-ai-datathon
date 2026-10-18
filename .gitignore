@@ -13,3 +13,5 @@ results/
 *.mp4
 *.pt
 data/
+
+.pytest_cache/
